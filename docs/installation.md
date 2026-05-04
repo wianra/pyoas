@@ -13,24 +13,18 @@ For most projects you want the full stack — models, routers, and scaffolding:
 uv add pyoas[fastapi]
 ```
 
-This pulls in `pyoas` and `pyoas` automatically.
-
-### Minimal installs
-
-Install only what you need:
+### Models only (no FastAPI dependency)
 
 ```shell
-# Models only (no FastAPI dependency)
-uv add pyoas
-
-# Core only (spec loading, CLI, rendering primitives)
 uv add pyoas
 ```
 
 ### Claude Code skills (optional)
 
+Can be combined with either install above:
+
 ```shell
-uv add pyoas[claude]
+uv add "pyoas[fastapi,claude]"
 ```
 
 ## Install with pip
@@ -42,18 +36,17 @@ pip install "pyoas[fastapi]"
 ## Verify
 
 ```shell
-pyoas --version
 pyoas --help
 ```
 
 ## Development install
 
-To work on pyoas itself, clone the repo and sync all workspace packages:
+To work on pyoas itself, clone the repo and install with all extras:
 
 ```shell
 git clone https://github.com/wianra/specgen.git
-cd pyoas
-uv sync --all-packages
+cd specgen
+uv sync --extra fastapi --extra claude
 ```
 
 Run tests:

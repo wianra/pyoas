@@ -231,7 +231,6 @@ def diff(
         tmp_cfg = copy.deepcopy(cfg)
         tmp_cfg.output.models = tmp_models
         tmp_cfg.output.routers = tmp_routers
-        tmp_cfg.format.enabled = False  # skip formatting in dry-run
 
         ModelGenerator(tmp_cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
         RouterGenerator(tmp_cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]

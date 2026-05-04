@@ -1,18 +1,18 @@
-# pyoas — Root Workspace
+# pyoas
 
 ## Overview
 
-Python 3.12+ monorepo using **uv workspaces** and **PEP 420 namespace packages** (`pyoas.*`). Generates Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs, organized by operation tag.
+Python 3.12+ single-package project (`pyoas`) with optional extras. Generates Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs, organized by operation tag.
 
 ## Packages
 
 | Package | Purpose |
 |---|---|
-| `pyoas` | Foundation: spec loading, ref resolution, tag extraction, Jinja2 rendering, CLI |
-| `pyoas` | Generates Pydantic v2 models from OpenAPI schemas |
-| `pyoas[fastapi]` | Generates FastAPI routers from OpenAPI paths |
+| `pyoas` | Spec loading, ref resolution, tag extraction, Jinja2 rendering, Pydantic v2 model generation, CLI |
+| `pyoas[fastapi]` | FastAPI router generation + service stubs + test scaffolding |
+| `pyoas[claude]` | Claude Code skill generation (optional) |
 
-Packages can be installed independently. `pyoas[fastapi]` depends on `pyoas`; both depend on `pyoas`.
+`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
 
 ## Key Data Flow
 
@@ -68,19 +68,19 @@ skills:
 
 ## Tooling
 
-- **uv**: workspace and dependency management (`uv run`, `uv add`)
+- **uv**: dependency management (`uv run`, `uv add`, `uv sync`)
 - **ruff**: linting (E, F, I, UP; line-length 88) and formatting
-- **mypy**: type checking across all packages (`--namespace-packages`)
+- **mypy**: type checking
 - **pytest**: testing with `--import-mode=importlib`
 - **syrupy**: snapshot testing for generated code
 
 ## Running Tests
 
 ```bash
-uv run pytest                          # all packages
-uv run pytest packages/pyoas/ # single package
-uv run ruff check packages/
-uv run mypy packages/
+uv run pytest                   # all tests
+uv run pytest tests/fastapi/    # single area
+uv run ruff check src/
+uv run mypy src/
 ```
 
 ## Generated Output Contract
@@ -92,4 +92,4 @@ uv run mypy packages/
 
 ## Test Fixtures
 
-Shared OpenAPI specs live in `tests/fixtures/` and are referenced by all three packages via `conftest.py`.
+Shared OpenAPI specs live in `tests/fixtures/` and are referenced by all test modules via `conftest.py`.

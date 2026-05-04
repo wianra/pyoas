@@ -89,12 +89,11 @@ pyoas reads your OpenAPI spec, groups operations by tag, and writes fully-typed 
 
 | Package | Install | Purpose |
 |---|---|---|
-| `pyoas` | `uv add pyoas` | Spec loading, config, CLI, Jinja2 renderer |
-| `pyoas` | `uv add pyoas` | Pydantic v2 model generation |
-| `pyoas[fastapi]` | `uv add pyoas[fastapi]` | FastAPI router + scaffold generation |
-| `pyoas[claude]` | `uv add pyoas[claude]` | Claude Code skill generation (optional) |
+| `pyoas` | `uv add pyoas` | Spec loading, config, CLI, Jinja2 renderer, Pydantic v2 model generation |
+| `pyoas[fastapi]` | `uv add pyoas[fastapi]` | FastAPI router + scaffold generation (adds FastAPI dependency) |
+| `pyoas[claude]` | `uv add "pyoas[claude]"` | Claude Code skill generation (optional) |
 
-`pyoas[fastapi]` depends on `pyoas`; both depend on `pyoas`.
+`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
 
 ## Get started
 

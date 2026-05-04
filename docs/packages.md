@@ -1,26 +1,25 @@
 # Package Architecture
 
-pyoas is organized as a uv workspace with four independently installable packages under the `pyoas.*` namespace (PEP 420 namespace packages).
+pyoas is a single Python package (`pyoas`) with optional extras for FastAPI and Claude Code integration.
 
-## Package dependency graph
+## Install options
 
+```shell
+# Models + routers + scaffolding (recommended for most projects)
+uv add pyoas[fastapi]
+
+# Models only (no FastAPI dependency)
+uv add pyoas
+
+# Claude Code skill generation (can be combined with either of the above)
+uv add "pyoas[fastapi,claude]"
 ```
-pyoas
-    ↑
-pyoas
-    ↑
-pyoas[fastapi]
 
-pyoas
-    ↑
-pyoas[claude]
-```
+## What each install provides
 
-`pyoas[fastapi]` depends on `pyoas`, which depends on `pyoas`. `pyoas[claude]` depends only on `pyoas`.
+### `pyoas` (base)
 
-## pyoas
-
-Foundation package. All other packages depend on it.
+The base package includes everything needed for Pydantic model generation.
 
 **Provides:**
 
@@ -30,42 +29,10 @@ Foundation package. All other packages depend on it.
 - `pyoas.core.tags` — `extract_tags()`: group operations by tag
 - `pyoas.core.renderer` — `Renderer`: Jinja2 with user-override support
 - `pyoas.core.utils` — `to_snake_case()`, `derive_import_path()`, etc.
-- `pyoas` CLI — all `pyoas` commands (dynamically imports model/router generators)
+- `pyoas.models.ModelGenerator` — generate Pydantic v2 model files
+- `pyoas` CLI — all `pyoas` commands
 
-**Runtime dependencies:** pyyaml, openapi-spec-validator, jsonref, jinja2, ruff, typer
-
-### Using pyoas standalone
-
-```python
-from pyoas.core.config import load_config
-from pyoas.core.parser import SpecParser
-from pyoas.core.resolver import resolve_refs
-from pyoas.core.tags import extract_tags
-
-config = load_config("pyoas.yaml")
-parser = SpecParser(config.spec)
-raw_spec = parser.load()
-resolved_spec = resolve_refs(raw_spec, config.spec)
-grouped = extract_tags(resolved_spec, config.default_tag)
-
-for tag, operations in grouped.items():
-    print(f"{tag}: {len(operations)} operations")
-```
-
----
-
-## pyoas
-
-Pydantic v2 model generation.
-
-**Provides:**
-
-- `pyoas.models.ModelGenerator` — generates model files from a `Config`
-- `pyoas.models.types.schema_to_python_type()` — converts an OpenAPI schema dict to a Python type annotation string
-
-**Runtime dependencies:** pyoas
-
-### Using pyoas standalone
+**Runtime dependencies:** pyyaml, openapi-spec-validator, jsonref, jinja2, ruff, typer, watchdog
 
 ```python
 from pyoas.core.config import load_config
@@ -75,41 +42,21 @@ config = load_config("pyoas.yaml")
 ModelGenerator(config).generate()
 ```
 
-Limit to specific tags:
-
-```python
-ModelGenerator(config).generate(tag_filter=["pets", "users"])
-```
-
-Use `schema_to_python_type()` directly:
-
-```python
-from pyoas.models.types import schema_to_python_type
-
-schema = {"type": "string", "format": "date-time"}
-print(schema_to_python_type(schema))  # "datetime.datetime"
-
-schema = {"type": "integer", "minimum": 0}
-print(schema_to_python_type(schema))  # "int"
-```
-
 ---
 
-## pyoas[fastapi]
+### `pyoas[fastapi]`
 
-FastAPI router generation plus one-time scaffolding.
+Extends the base package with FastAPI router generation and one-time scaffolding.
 
-**Provides:**
+**Additional provides:**
 
-- `pyoas.fastapi.RouterGenerator` — generates router files from a `Config`
-- `pyoas.fastapi.ServiceScaffolder` — scaffolds service stub files
-- `pyoas.fastapi.TestScaffolder` — scaffolds endpoint test files
-- `pyoas.fastapi.ServiceTestScaffolder` — scaffolds service integration test files
-- `pyoas.fastapi.DependencyScaffolder` — scaffolds dependency injection stubs
+- `pyoas.fastapi.RouterGenerator` — generate FastAPI router files
+- `pyoas.fastapi.ServiceScaffolder` — scaffold service stub files
+- `pyoas.fastapi.TestScaffolder` — scaffold endpoint test files
+- `pyoas.fastapi.ServiceTestScaffolder` — scaffold service integration test files
+- `pyoas.fastapi.DependencyScaffolder` — scaffold dependency injection stubs
 
-**Runtime dependencies:** pyoas, pyoas, polyfactory
-
-### Using pyoas[fastapi] standalone
+**Additional runtime dependencies:** fastapi, polyfactory
 
 ```python
 from pyoas.core.config import load_config
@@ -122,17 +69,15 @@ ServiceScaffolder(config).scaffold()
 
 ---
 
-## pyoas[claude]
+### `pyoas[claude]`
 
-Claude Code skill generation. Optional, separate install.
+Extends the base package with Claude Code skill file generation.
 
-**Provides:**
+**Additional provides:**
 
-- `pyoas.claude.SkillScaffolder` — generates Claude Code skill files
+- `pyoas.claude.SkillScaffolder` — generate `.claude/commands/*.md` skill files
 
-**Runtime dependencies:** pyoas, typer
-
-### Using pyoas[claude] standalone
+**Additional runtime dependencies:** none
 
 ```python
 from pyoas.core.config import load_config
@@ -144,34 +89,14 @@ SkillScaffolder(config).scaffold()
 
 ---
 
-## Installing individual packages
+## Source layout
 
-If you only need models (no FastAPI dependency):
-
-```shell
-uv add pyoas
-```
-
-If you only need the spec parsing / rendering primitives:
-
-```shell
-uv add pyoas
-```
-
-The `pyoas` CLI is always available once `pyoas` is installed.
-
----
-
-## Namespace package layout
-
-All packages share the `pyoas` namespace (PEP 420):
+All modules live under a single `src/pyoas/` tree:
 
 ```
-pyoas/
-  core/    → pyoas
-  models/  → pyoas
-  fastapi/ → pyoas[fastapi]
-  claude/  → pyoas[claude]
+src/pyoas/
+  core/    # config, parser, resolver, tags, renderer, utils, cli
+  models/  # ModelGenerator, schema renderer, type mapping
+  fastapi/ # RouterGenerator, scaffolders, params
+  claude/  # SkillScaffolder
 ```
-
-Each package has its own `src/pyoas/<name>/` directory with no `__init__.py` at the `pyoas/` level, allowing them to be installed independently without conflict.

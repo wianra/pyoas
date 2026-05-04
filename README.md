@@ -6,12 +6,11 @@ Generate Pydantic v2 models and FastAPI routers from an OpenAPI spec. Organized 
 
 | Package | Purpose |
 |---|---|
-| `pyoas` | Foundation: spec loading, ref resolution, tag extraction, Jinja2 rendering, CLI |
-| `pyoas` | Pydantic v2 model generation from OpenAPI schemas |
-| `pyoas[fastapi]` | FastAPI router + service stub generation + test scaffolding |
-| `pyoas[claude]` | Claude Code skill generation (optional) |
+| `pyoas` | Spec loading, ref resolution, tag extraction, Jinja2 rendering, Pydantic v2 model generation, CLI |
+| `pyoas[fastapi]` | FastAPI router generation + service stubs + test scaffolding (adds FastAPI dependency) |
+| `pyoas[claude]` | Claude Code skill generation (optional, no extra runtime dependencies) |
 
-`pyoas[fastapi]` depends on `pyoas`; both depend on `pyoas`. `pyoas[claude]` depends on `pyoas`.
+`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
 
 ## Quick start
 
@@ -214,19 +213,19 @@ Install `pyoas[claude]` and set `skills.generate: true` in your config. Running 
 ## Development
 
 ```shell
-# Install all workspace packages in editable mode
-uv sync --all-packages
+# Install in editable mode with all extras
+uv sync --extra fastapi --extra claude
 
 # Run all tests
 uv run pytest
 
-# Run tests for a single package
-uv run pytest packages/pyoas[fastapi]/
+# Run tests for a single area
+uv run pytest tests/fastapi/
 
 # Update snapshots
-uv run pytest packages/pyoas[fastapi]/ --snapshot-update
+uv run pytest tests/fastapi/ --snapshot-update
 
 # Lint and type-check
-uv run ruff check packages/
-uv run mypy packages/
+uv run ruff check src/
+uv run mypy src/
 ```
