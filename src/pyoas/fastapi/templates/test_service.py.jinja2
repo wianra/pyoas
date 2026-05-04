@@ -1,0 +1,44 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+from __future__ import annotations
+
+import pytest
+from {{ service_import_path }}.{{ tag_dirname }} import {{ service_class_name }}
+
+
+@pytest.fixture
+def service() -> {{ service_class_name }}:
+    """Construct {{ service_class_name }} with real dependencies.
+
+    Replace pytest.skip with actual construction, e.g.:
+        return {{ service_class_name }}(db=your_db_session, repo=your_repo, ...)
+    """
+    pytest.skip("implement me")
+
+
+{% for op in operations %}
+class {{ op.class_name }}:
+    """Service tests for {{ op.method | upper }} {{ op.path }}"""
+
+    def {{ op.success_test_name }}(self, service: {{ service_class_name }}) -> None:
+        """Happy path — verify service returns expected result."""
+        pytest.skip("implement me")
+{% if op.has_not_found_case %}
+
+    def test_raises_not_found_when_missing(self, service: {{ service_class_name }}) -> None:
+        """Verify service raises not-found when resource doesn't exist."""
+        pytest.skip("implement me")
+{% endif %}
+{% if op.has_security %}
+
+    def test_raises_unauthorized_when_unauthenticated(self, service: {{ service_class_name }}) -> None:
+        """Verify service raises when no auth is provided."""
+        pytest.skip("implement me")
+{% if op.has_path_id_param %}
+
+    def test_raises_forbidden_when_not_owner(self, service: {{ service_class_name }}) -> None:
+        """Verify service enforces ownership / access control."""
+        pytest.skip("implement me")
+{% endif %}
+{% endif %}
+
+{% endfor %}

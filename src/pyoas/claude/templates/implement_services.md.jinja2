@@ -1,0 +1,48 @@
+Implement all `raise NotImplementedError` stubs in the service file: $ARGUMENTS
+
+## How this project is structured
+
+- Service files: {{ services_output }}/{tag}.py
+- Service test stubs: {{ tests_output }}/test_{tag}_service.py
+- Each service class method maps to one API operation (see the method signature)
+
+## What to implement
+
+Each `raise NotImplementedError` is a stub waiting for real logic. The method
+signature tells you the inputs and expected return type.
+
+Typical patterns:
+- Query a database, cache, or external API
+- Raise an appropriate exception if the resource is not found
+{% if not_found_exception %}
+  For this project: `{{ not_found_exception }}`
+{% endif %}
+- Return the Pydantic model declared in the return type annotation
+{% if services_pattern == "repository" %}
+
+## Repository pattern
+
+This project uses the repository pattern. Delegate to `self._repo`:
+- list:   `return await self._repo.list(**filters)`
+- get:    `return await self._repo.get(id)`  (repo raises not-found if missing)
+- create: `return await self._repo.create(data)`
+- update: `return await self._repo.update(id, data)`
+- delete: `await self._repo.delete(id)`
+{% elif services_pattern == "domain" %}
+
+## Domain model pattern
+
+Translate between persistence entities and Pydantic domain models:
+1. Fetch entity via ORM/repo
+2. Map to the Pydantic return type before returning
+{% endif %}
+
+## Implementation steps
+
+1. Read $ARGUMENTS and list all methods containing `raise NotImplementedError`
+2. For each method:
+   a. Read the signature — name, parameters, return type
+   b. Implement the body using the patterns above
+3. After all stubs are implemented, run:
+   `uv run pytest {{ tests_output }}/test_$TAG_service.py -v`
+   Fix any failures before finishing.

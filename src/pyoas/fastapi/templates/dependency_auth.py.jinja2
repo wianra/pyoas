@@ -1,0 +1,63 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Annotated
+from fastapi import Depends
+{% if scheme_type == "bearer" %}
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+_scheme = HTTPBearer()
+{% elif scheme_type == "basic" %}
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
+_scheme = HTTPBasic()
+{% elif scheme_type == "apikey" %}
+from fastapi.security import APIKeyHeader
+
+_scheme = APIKeyHeader(name="X-API-Key")
+{% elif scheme_type == "oauth2" %}
+from fastapi.security import OAuth2PasswordBearer
+
+_scheme = OAuth2PasswordBearer(tokenUrl="{{ oauth2_token_url }}")
+{% endif %}
+
+
+@dataclass
+class AuthContext:
+    """Carry verified identity info from the token into your service/repository layer.
+
+    Add whatever fields your application needs, for example:
+        tenant_id: str | None = None
+        user_id: str | None = None
+        is_global: bool = False
+        scopes: list[str] = field(default_factory=list)
+    """
+    pass
+
+
+{% if scheme_type == "bearer" %}
+async def get_auth_context(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_scheme)],
+) -> AuthContext:
+    # TODO: validate credentials.credentials (JWT, opaque token, …) and return an AuthContext.
+    raise NotImplementedError
+{% elif scheme_type == "basic" %}
+async def get_auth_context(
+    credentials: Annotated[HTTPBasicCredentials, Depends(_scheme)],
+) -> AuthContext:
+    # TODO: validate credentials.username / credentials.password and return an AuthContext.
+    raise NotImplementedError
+{% elif scheme_type == "apikey" %}
+async def get_auth_context(
+    api_key: Annotated[str, Depends(_scheme)],
+) -> AuthContext:
+    # TODO: validate api_key and return an AuthContext.
+    raise NotImplementedError
+{% elif scheme_type == "oauth2" %}
+async def get_auth_context(
+    token: Annotated[str, Depends(_scheme)],
+) -> AuthContext:
+    # TODO: validate token and return an AuthContext.
+    raise NotImplementedError
+{% endif %}

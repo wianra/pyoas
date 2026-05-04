@@ -1,0 +1,20 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+from __future__ import annotations
+
+from polyfactory.factories.pydantic_factory import ModelFactory
+{% for module, names in import_groups.items() %}{% if names %}
+from {{ models_import_path }}.{{ module }} import (
+{% for name in names %}    {{ name }},
+{% endfor %})
+{% endif %}{% endfor %}
+{% for factory in factories %}
+
+class {{ factory.factory_class_name }}(ModelFactory):
+    __model__ = {{ factory.type_str }}
+{% endfor %}
+{% for factory in factories %}
+
+def {{ factory.func_name }}(**overrides) -> {{ factory.type_str }}:
+    """Minimal valid {{ factory.type_str }}. Override fields as needed."""
+    return {{ factory.factory_class_name }}.build(**overrides)
+{% endfor %}

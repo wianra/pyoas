@@ -1,0 +1,156 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+from __future__ import annotations
+
+import pytest
+{% if needs_http_exception_import %}
+from fastapi import FastAPI, HTTPException
+{% else %}
+from fastapi import FastAPI
+{% endif %}
+from fastapi.testclient import TestClient
+from {{ router_import_path }}.{{ tag_dirname }} import router as {{ tag_dirname }}_router
+{% if has_services %}
+from unittest.mock import AsyncMock
+from {{ service_import_path }}.{{ tag_dirname }} import {{ service_class_name }}, {{ service_dep_fn }}
+{% endif %}
+{% if has_auth_dep %}
+from {{ auth_dep_import_path }}.auth import AuthContext, get_auth_context
+{% endif %}
+{% if conftest_import_path %}
+from {{ conftest_import_path }} import {{ auto_impl_factories | join(", ") }}
+{% endif %}
+
+
+@pytest.fixture
+def client() -> TestClient:
+    app = FastAPI()
+    app.include_router({{ tag_dirname }}_router)
+{% if has_auth_dep %}
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
+{% endif %}
+    return TestClient(app)
+{% if has_services %}
+
+
+@pytest.fixture
+def mock_service() -> AsyncMock:
+    """Replace the real service with a mock — override dep before each test."""
+    return AsyncMock(spec={{ service_class_name }})
+
+
+@pytest.fixture
+def client_with_mock(mock_service: AsyncMock) -> TestClient:
+    """TestClient with the service dependency wired to mock_service."""
+    app = FastAPI()
+    app.include_router({{ tag_dirname }}_router)
+    app.dependency_overrides[{{ service_dep_fn }}] = lambda: mock_service
+{% if has_auth_dep %}
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
+{% endif %}
+    return TestClient(app)
+{% endif %}
+
+
+{% for op in operations %}
+class {{ op.class_name }}:
+    """Tests for {{ op.method | upper }} {{ op.path }}"""
+
+{% if has_services %}
+    def test_endpoint_exists(self, client_with_mock: TestClient, mock_service: AsyncMock) -> None:
+        """Verify endpoint responds (not 404/405)."""
+{% if op.response_factory or op.default_mock_return_repr %}
+        mock_service.{{ op.function_name }}.return_value = {{ op.response_factory or op.default_mock_return_repr }}
+{% endif %}
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.has_required_body and not op.has_required_body_fields %}, json={}{% endif %}{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        assert response.status_code not in (404, 405)
+{% else %}
+    def test_endpoint_exists(self, client: TestClient) -> None:
+        """Verify endpoint responds (not 404/405)."""
+        response = client.{{ op.method }}("{{ op.filled_path }}"{% if op.has_required_body and not op.has_required_body_fields %}, json={}{% endif %}{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        assert response.status_code not in (404, 405)
+{% endif %}
+{% if op.needs_validation_test %}
+
+    def test_validation_error(self, client: TestClient) -> None:
+        """Verify validation rejects missing required input (expects 422)."""
+        response = client.{{ op.method }}("{{ op.filled_path }}")
+        assert response.status_code == 422
+{% endif %}
+{% if op.has_required_body and op.has_required_body_fields %}
+
+    def test_missing_required_field(self, client: TestClient) -> None:
+        """Verify validation rejects body missing required fields (expects 422)."""
+        response = client.{{ op.method }}("{{ op.filled_path }}", json={})
+        assert response.status_code == 422
+{% endif %}
+{% for ct in op.query_constraint_tests %}
+
+    def {{ ct.test_name }}(self, client: TestClient) -> None:
+        """Verify validation rejects out-of-range {{ ct.param_name }} (expects 422)."""
+        response = client.{{ op.method }}("{{ op.filled_path }}", params={"{{ ct.param_name }}": {{ ct.violation_expr }}})
+        assert response.status_code == 422
+{% endfor %}
+{% for ipt in op.invalid_path_tests %}
+
+    def {{ ipt.test_name }}(self, client: TestClient) -> None:
+        """Verify validation rejects {{ ipt.type_description }} path parameter (expects 422)."""
+        response = client.{{ op.method }}("{{ ipt.invalid_path }}")
+        assert response.status_code == 422
+{% endfor %}
+{% for et in op.enum_violation_tests %}
+
+    def {{ et.test_name }}(self, client: TestClient) -> None:
+        """Verify validation rejects invalid enum value for {{ et.param_name }} (expects 422)."""
+        response = {{ et.response_call }}
+        assert response.status_code == 422
+{% endfor %}
+{% for ft in op.body_field_tests %}
+
+    def {{ ft.test_name }}(self, client: TestClient) -> None:
+        """{{ ft.docstring }}"""
+        response = client.{{ op.method }}("{{ op.filled_path }}", json={{ ft.json_repr }})
+        assert response.status_code == 422
+{% endfor %}
+{% if op.has_not_found_case and has_services %}
+
+    def test_not_found(self, client_with_mock: TestClient, mock_service: AsyncMock) -> None:
+        """Service raises not-found — expect 404."""
+        mock_service.{{ op.function_name }}.side_effect = {{ op.not_found_exception_expr }}
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.not_found_body_repr %}, json={{ op.not_found_body_repr }}{% endif %}{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        assert response.status_code == 404
+{% endif %}
+
+{% if op.auto_implement_success and has_services %}
+{% if op.response_factory or op.default_mock_return_repr %}
+    def test_success(self, client_with_mock: TestClient, mock_service: AsyncMock) -> None:
+        """Happy path — {{ op.method | upper }} {{ op.path }} → {{ op.success_status_code }}{% if op.response_type_str != "None" %} {{ op.response_type_str }}{% endif %}."""
+        mock_service.{{ op.function_name }}.return_value = {{ op.response_factory or op.default_mock_return_repr }}
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        assert response.status_code == {{ op.success_status_code }}
+{% else %}
+    def test_success(self, client_with_mock: TestClient) -> None:
+        """Happy path — {{ op.method | upper }} {{ op.path }} → {{ op.success_status_code }}{% if op.response_type_str != "None" %} {{ op.response_type_str }}{% endif %}."""
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        assert response.status_code == {{ op.success_status_code }}
+{% endif %}
+{% else %}
+    def test_success(self, {% if has_services %}client_with_mock: TestClient{% else %}client: TestClient{% endif %}) -> None:
+        """Happy path — {{ op.method | upper }} {{ op.path }} → {{ op.success_status_code }}{% if op.response_type_str != "None" %} {{ op.response_type_str }}{% endif %}."""
+{% if has_services %}
+{% if op.response_factory %}
+        # mock_service.{{ op.function_name }}.return_value = {{ op.response_factory }}
+{% if op.method in ("post", "put", "patch") %}
+        # Adjust return_value to match your service logic
+{% endif %}
+{% endif %}
+        # response = client_with_mock.{{ op.method }}("{{ op.filled_path }}")
+{% if op.response_type_str == "None" %}
+        # No response body — assert response.status_code == {{ op.success_status_code }}
+{% else %}
+        # assert response.status_code == {{ op.success_status_code }}
+{% endif %}
+{% endif %}
+        pytest.skip("implement me")
+{% endif %}
+
+{% endfor %}

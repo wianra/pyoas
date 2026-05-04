@@ -1,0 +1,45 @@
+Add a new test method to a test file: $ARGUMENTS
+
+The argument format is: `<test_file_path> "<scenario description>"`
+
+Example:
+```
+/add-test-case {{ tests_output }}/test_fleet.py "driver with expired licence should return 403"
+```
+
+## Project structure
+
+- Test files: `{{ tests_output }}/test_{tag}.py`
+- Each test class corresponds to one API endpoint (the class docstring names it)
+- Factory helpers for building response objects: `{{ tests_output }}/conftest.py`
+{% if has_services %}
+- Fixtures available in every test class:
+  - `client_with_mock` — TestClient with the service dependency overridden
+  - `mock_service` — `AsyncMock(spec={Tag}Service)` wired into that client
+{% endif %}
+
+## Error handling convention
+
+{% if not_found_exception %}
+Not-found errors in this project: `{{ not_found_exception }}`
+{% else %}
+Not-found errors: configure with `mock_service.{method}.side_effect = <NotFoundError>`
+{% endif %}
+
+## Steps
+
+1. Parse `$ARGUMENTS` to get the test file path and scenario description
+2. Read the test file and identify which test class covers the relevant endpoint
+3. Read existing test methods in that class to understand the fixture and assertion pattern
+4. Add a new test method:
+   - Name: `test_<snake_case_scenario>` (e.g., `test_driver_with_expired_licence_returns_403`)
+   - Mirror the fixture signature of other methods in the class
+{% if has_services %}
+   - Error scenarios (4xx): set `mock_service.{method}.side_effect = <exception>`, call via `client_with_mock`
+   - Success scenarios (2xx): set `mock_service.{method}.return_value = <factory_result>`, call via `client_with_mock`
+{% endif %}
+5. Run the new test to verify it passes:
+   ```
+   uv run pytest <test_file_path> -k <test_method_name> -v
+   ```
+6. Fix any failures before finishing

@@ -1,0 +1,66 @@
+Implement all `pytest.skip("implement me")` stubs in the test file: $ARGUMENTS
+
+## How this project is structured
+
+- Router test files: {{ tests_output }}/test_{tag}.py
+- Service test stubs: {{ tests_output }}/test_{tag}_service.py
+{% if services_output %}
+- Service files: {{ services_output }}/{tag}.py
+{% endif %}
+- Factory helpers for building response objects: {{ tests_output }}/conftest.py
+- Each test class maps to one API endpoint (documented in the class docstring)
+{% if has_services %}
+
+## The service mock pattern
+
+Each test class has access to:
+- `client_with_mock` — a TestClient with the service dependency overridden
+- `mock_service` — an AsyncMock(spec={Tag}Service) wired into that client
+
+The service method name is the snake_case operationId from the router (matches the
+function name in {{ router_import_path | replace(".", "/") }}/{tag}/router.py).
+{% endif %}
+
+## Error handling convention
+
+{% if not_found_exception %}
+Not-found errors in this project:
+  `{{ not_found_exception }}`
+
+Configure with: `mock_service.{method}.side_effect = {{ not_found_exception }}`
+{% else %}
+Not-found errors: configure with `mock_service.{method}.side_effect = <NotFoundError>`
+{% endif %}
+
+## Implementation steps
+
+1. Read $ARGUMENTS and list all methods containing `pytest.skip("implement me")`
+2. For each stub:
+   a. Read the hint comments above the `pytest.skip` line — they show the exact
+      mock setup, request call, and assertion to use
+   b. If no hints are present, read the class docstring for the endpoint, then
+      read {{ tests_output }}/conftest.py to find the right factory function
+3. Implement `test_success`:
+{% if has_services %}
+   - Set `mock_service.{method}.return_value` to a factory-built instance
+   - Call the endpoint via `client_with_mock`
+{% else %}
+   - Call the endpoint via `client`
+{% endif %}
+   - Assert `response.status_code == 200` (201 for POST) and spot-check the JSON
+{% if has_services %}
+4. Implement `test_not_found`:
+   - Set `mock_service.{method}.side_effect` to the not-found exception above
+   - Call the endpoint via `client_with_mock`
+   - Assert `response.status_code == 404`
+5. For POST/PUT/PATCH `test_success`: check the hint comment — if it flags
+   "adjust return_value to match your service logic", implement a basic assertion
+   (status code only) and leave a TODO comment for domain logic
+6. After all stubs are implemented, run:
+   `uv run pytest $ARGUMENTS -v`
+   Fix any failures before finishing.
+{% else %}
+4. After all stubs are implemented, run:
+   `uv run pytest $ARGUMENTS -v`
+   Fix any failures before finishing.
+{% endif %}

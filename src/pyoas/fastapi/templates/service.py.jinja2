@@ -1,0 +1,51 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
+from __future__ import annotations
+
+{% if needs_any and needs_annotated %}
+from typing import Any, Annotated
+{% elif needs_any %}
+from typing import Any
+{% elif needs_annotated %}
+from typing import Annotated
+{% endif %}
+{% if fastapi_param_classes %}
+from fastapi import {{ fastapi_param_classes | join(", ") }}
+{% endif %}
+{% for imp in stdlib_imports %}
+{{ imp }}
+{% endfor %}
+{% for entry in tag_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
+{% for entry in shared_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
+{% if dep_import_path and has_any_security %}
+from {{ dep_import_path }}.auth import AuthContext
+{% endif %}
+
+
+class {{ service_class_name }}:
+{% for op in operations %}
+    async def {{ op.function_name }}(
+        self,
+{% if op.parameters or (op.has_security and dep_import_path) %}
+        *,
+{% endif %}
+{% for param in op.parameters %}
+        {{ param.name }}: {{ param.python_type }}{% if not param.required %} = None{% endif %},
+{% endfor %}
+{% if op.has_security and dep_import_path %}
+        auth: AuthContext,
+{% endif %}
+    ) -> {{ op.response_type }}:
+{% if op.summary or op.description %}
+        """{{ op.summary or op.description }}"""
+{% endif %}
+        raise NotImplementedError
+
+{% endfor %}
+
+async def {{ service_dep_fn }}() -> {{ service_class_name }}:
+    # TODO: wire in your dependencies here (e.g. db session, repository) before returning.
+    return {{ service_class_name }}()

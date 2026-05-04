@@ -1,0 +1,29 @@
+Review all generated files against the OpenAPI spec and flag issues.
+
+## Files to review
+
+- OpenAPI spec: `{{ spec }}`
+- Generated models: `{{ models_output }}/`
+- Generated routers: `{{ routers_output }}/`
+{% if services_output %}
+- Service stubs: `{{ services_output }}/`
+{% endif %}
+
+## Review steps
+
+1. Read the OpenAPI spec (`{{ spec }}`)
+2. List all operations (method + path + operationId)
+3. For each operation:
+   a. Locate the corresponding endpoint function in `{{ routers_output }}/`
+   b. Verify path parameters, query parameters, and request body types match the spec
+   c. Verify the response model name and fields match the spec schema
+   d. Flag any mismatches
+4. Check for common issues:
+   - Response models where all fields are `Any` (incomplete schema mapping)
+   - `DELETE` endpoints that return a non-empty response body (semantically odd)
+   - `POST`/`PUT` endpoints missing a request body type (body typed as `dict` or `Any`)
+   - Operations whose response schema is in `shared/models.py` but is only used by one tag
+5. Output a structured summary:
+   - Operations that look complete
+   - Operations with issues (with specific details)
+   - Operations missing entirely from the generated output
