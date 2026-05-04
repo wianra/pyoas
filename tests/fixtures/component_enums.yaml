@@ -1,0 +1,39 @@
+openapi: "3.0.0"
+info:
+  title: Component Enum API
+  version: "1.0"
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      tags: [pets]
+      responses:
+        "200":
+          description: List of pets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pet"
+components:
+  schemas:
+    PetStatus:
+      type: string
+      enum: [available, pending, sold]
+      description: Status of the pet
+    Priority:
+      type: integer
+      enum: [1, 2, 3]
+    Pet:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/PetStatus"
+        priority:
+          $ref: "#/components/schemas/Priority"

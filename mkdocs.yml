@@ -1,0 +1,70 @@
+site_name: pyoas
+site_description: Generate Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs
+site_url: https://wianra.github.io/specgen/
+repo_url: https://github.com/wianra/specgen
+repo_name: wianra/specgen
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.instant
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quickstart: quickstart.md
+    - Configuration: configuration.md
+  - Guides:
+    - Model Generation: guides/models.md
+    - Router Generation: guides/routers.md
+    - Service Scaffolding: guides/services.md
+    - Test Scaffolding: guides/tests.md
+    - Dependency Injection: guides/dependencies.md
+    - Custom Templates: guides/custom-templates.md
+    - Claude Code Skills: guides/claude-skills.md
+  - CLI Reference: cli.md
+  - Package Architecture: packages.md

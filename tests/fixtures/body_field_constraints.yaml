@@ -1,0 +1,101 @@
+openapi: "3.0.3"
+info:
+  title: Body Field Constraints API
+  version: "1.0.0"
+
+# Exercises: body field numeric/string/pattern constraints, UUID path params,
+# enum query params, and string-length query param constraints.
+
+paths:
+  /items:
+    post:
+      operationId: createItem
+      summary: Create an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItemRequest"
+      responses:
+        "201":
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+    get:
+      operationId: listItems
+      summary: List items
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, pending]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 20
+      responses:
+        "200":
+          description: A list of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      summary: Get item by UUID
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The requested item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+
+    CreateItemRequest:
+      type: object
+      required: [name, age]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: "^[a-zA-Z ]+$"
+        age:
+          type: integer
+          minimum: 0
+          maximum: 150
+        description:
+          type: string
+          maxLength: 200

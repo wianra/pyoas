@@ -1,0 +1,64 @@
+openapi: "3.0.3"
+info:
+  title: Read-Write Split Test
+  version: "1.0.0"
+tags:
+  - name: documents
+    description: Document operations
+
+paths:
+  /documents:
+    post:
+      summary: Create a document
+      operationId: createDocument
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Document"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+  /documents/{id}:
+    get:
+      summary: Get a document
+      operationId: getDocument
+      tags: [documents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+components:
+  schemas:
+    Document:
+      type: object
+      required:
+        - title
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: Server-assigned ID
+        title:
+          type: string
+          description: Document title
+        secret:
+          type: string
+          writeOnly: true
+          description: Write-only secret token

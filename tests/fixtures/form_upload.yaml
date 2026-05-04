@@ -1,0 +1,51 @@
+openapi: "3.0.0"
+info:
+  title: Form Upload API
+  version: "1.0"
+paths:
+  /upload:
+    post:
+      operationId: uploadFile
+      tags: [files]
+      summary: Upload a file with metadata
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, name]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload
+                name:
+                  type: string
+                  description: Display name for the file
+                description:
+                  type: string
+                  description: Optional description
+      responses:
+        "200":
+          description: Upload successful
+  /form:
+    post:
+      operationId: submitForm
+      tags: [files]
+      summary: Submit a form
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  type: string
+                age:
+                  type: integer
+      responses:
+        "200":
+          description: Form submitted

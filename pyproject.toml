@@ -1,0 +1,63 @@
+[project]
+name = "pyoas"
+version = "0.1.0"
+description = "Generate Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs"
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+    "jinja2>=3.1",
+    "jsonref>=1.1",
+    "openapi-spec-validator>=0.7",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "ruff>=0.4",
+    "typer>=0.12",
+    "watchdog>=3.0",
+    "polyfactory>=2.0",
+]
+
+[project.optional-dependencies]
+fastapi = ["fastapi>=0.110"]
+claude = []
+all = ["pyoas[fastapi,claude]"]
+
+[project.scripts]
+pyoas = "pyoas.core.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pyoas"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "syrupy>=4.0",
+    "types-pyyaml>=6.0.12.20260408",
+    "httpx>=0.27",
+    "mkdocs-material>=9.7.6",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
+mypy_path = ["src"]
+exclude = [
+    "conftest\\.py$",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+filterwarnings = ["ignore::pytest.PytestCollectionWarning"]

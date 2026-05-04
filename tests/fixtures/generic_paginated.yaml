@@ -1,0 +1,99 @@
+openapi: "3.0.3"
+info:
+  title: Generic Paginated API
+  version: "1.0.0"
+
+paths:
+  /fleet/drivers:
+    get:
+      operationId: listDrivers
+      tags: [fleet]
+      summary: List drivers (paginated)
+      responses:
+        "200":
+          description: Paginated drivers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Paginated_DriverListItem_"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users (paginated)
+      responses:
+        "200":
+          description: Paginated users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Paginated_UserListItem_"
+
+components:
+  schemas:
+    DriverListItem:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Paginated_DriverListItem_:
+      type: object
+      title: "Paginated[DriverListItem]"
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriverListItem"
+          title: Data
+          description: Page of results
+        page:
+          type: integer
+          title: Page
+          description: Current page number (1-indexed)
+        pageSize:
+          type: integer
+          title: Pagesize
+          description: Number of items per page
+        total:
+          type: integer
+          title: Total
+          description: Total number of matching records
+
+    UserListItem:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+
+    Paginated_UserListItem_:
+      type: object
+      title: "Paginated[UserListItem]"
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserListItem"
+          title: Data
+          description: Page of results
+        page:
+          type: integer
+          title: Page
+          description: Current page number (1-indexed)
+        pageSize:
+          type: integer
+          title: Pagesize
+          description: Number of items per page
+        total:
+          type: integer
+          title: Total
+          description: Total number of matching records

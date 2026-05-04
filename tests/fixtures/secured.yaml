@@ -1,0 +1,41 @@
+openapi: "3.0.0"
+info:
+  title: Secured API
+  version: "1.0"
+security:
+  - bearerAuth: []
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items (requires auth)
+      responses:
+        "200":
+          description: List of items
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create item (no auth override)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Item"
+      responses:
+        "201":
+          description: Created
+components:
+  schemas:
+    Item:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

@@ -1,0 +1,143 @@
+# serializer version: 1
+# name: test_scaffold_creates_files[conftest_30]
+  '''
+  # Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+  from __future__ import annotations
+  
+  from polyfactory.factories.pydantic_factory import ModelFactory
+  from generated.models.pets import (
+      Pet,
+      PetList,
+  )
+  
+  class PetFactory(ModelFactory):
+      __model__ = Pet
+  
+  class PetListFactory(ModelFactory):
+      __model__ = PetList
+  
+  def make_pet(**overrides) -> Pet:
+      """Minimal valid Pet. Override fields as needed."""
+      return PetFactory.build(**overrides)
+  
+  def make_pet_list(**overrides) -> PetList:
+      """Minimal valid PetList. Override fields as needed."""
+      return PetListFactory.build(**overrides)
+  
+  '''
+# ---
+# name: test_scaffold_creates_files[test_pets_30]
+  '''
+  # Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+  from __future__ import annotations
+  
+  import pytest
+  from fastapi import FastAPI
+  from fastapi.testclient import TestClient
+  from generated.routers.pets import router as pets_router
+  
+  
+  @pytest.fixture
+  def client() -> TestClient:
+      app = FastAPI()
+      app.include_router(pets_router)
+      return TestClient(app)
+  
+  
+  class TestListPets:
+      """Tests for GET /pets"""
+  
+      def test_endpoint_exists(self, client: TestClient) -> None:
+          """Verify endpoint responds (not 404/405)."""
+          response = client.get("/pets")
+          assert response.status_code not in (404, 405)
+  
+      def test_limit_below_minimum(self, client: TestClient) -> None:
+          """Verify validation rejects out-of-range limit (expects 422)."""
+          response = client.get("/pets", params={"limit": 0})
+          assert response.status_code == 422
+  
+      def test_limit_above_maximum(self, client: TestClient) -> None:
+          """Verify validation rejects out-of-range limit (expects 422)."""
+          response = client.get("/pets", params={"limit": 101})
+          assert response.status_code == 422
+  
+      def test_success(self, client: TestClient) -> None:
+          """Happy path — GET /pets → 200 PetList."""
+          pytest.skip("implement me")
+  
+  class TestCreatePet:
+      """Tests for POST /pets"""
+  
+      def test_endpoint_exists(self, client: TestClient) -> None:
+          """Verify endpoint responds (not 404/405)."""
+          response = client.post("/pets")
+          assert response.status_code not in (404, 405)
+  
+      def test_validation_error(self, client: TestClient) -> None:
+          """Verify validation rejects missing required input (expects 422)."""
+          response = client.post("/pets")
+          assert response.status_code == 422
+  
+      def test_missing_required_field(self, client: TestClient) -> None:
+          """Verify validation rejects body missing required fields (expects 422)."""
+          response = client.post("/pets", json={})
+          assert response.status_code == 422
+  
+      def test_success(self, client: TestClient) -> None:
+          """Happy path — POST /pets → 201 Pet."""
+          pytest.skip("implement me")
+  
+  class TestGetPet:
+      """Tests for GET /pets/{petId}"""
+  
+      def test_endpoint_exists(self, client: TestClient) -> None:
+          """Verify endpoint responds (not 404/405)."""
+          response = client.get("/pets/1")
+          assert response.status_code not in (404, 405)
+  
+      def test_invalid_pet_id_type(self, client: TestClient) -> None:
+          """Verify validation rejects non-integer path parameter (expects 422)."""
+          response = client.get("/pets/not-an-integer")
+          assert response.status_code == 422
+  
+      def test_success(self, client: TestClient) -> None:
+          """Happy path — GET /pets/{petId} → 200 Pet."""
+          pytest.skip("implement me")
+  
+  
+  '''
+# ---
+# name: test_scaffold_creates_files[test_store_30]
+  '''
+  # Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+  from __future__ import annotations
+  
+  import pytest
+  from fastapi import FastAPI
+  from fastapi.testclient import TestClient
+  from generated.routers.store import router as store_router
+  
+  
+  @pytest.fixture
+  def client() -> TestClient:
+      app = FastAPI()
+      app.include_router(store_router)
+      return TestClient(app)
+  
+  
+  class TestGetInventory:
+      """Tests for GET /store/inventory"""
+  
+      def test_endpoint_exists(self, client: TestClient) -> None:
+          """Verify endpoint responds (not 404/405)."""
+          response = client.get("/store/inventory")
+          assert response.status_code not in (404, 405)
+  
+      def test_success(self, client: TestClient) -> None:
+          """Happy path — GET /store/inventory → 200 dict[str, int]."""
+          pytest.skip("implement me")
+  
+  
+  '''
+# ---

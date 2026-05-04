@@ -1,0 +1,65 @@
+openapi: "3.0.3"
+info:
+  title: Discriminated Unions API
+  version: "1.0.0"
+tags:
+  - name: events
+
+paths:
+  /events:
+    post:
+      operationId: createEvent
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+
+components:
+  schemas:
+    ClickEvent:
+      type: object
+      required: [type, x, y]
+      properties:
+        type:
+          type: string
+          enum: [click]
+        x:
+          type: integer
+        y:
+          type: integer
+
+    KeyboardEvent:
+      type: object
+      required: [type, key]
+      properties:
+        type:
+          type: string
+          enum: [keyboard]
+        key:
+          type: string
+        modifiers:
+          type: array
+          items:
+            type: string
+            enum: [shift, ctrl, alt, meta]
+
+    Event:
+      description: A user interaction event (discriminated union)
+      discriminator:
+        propertyName: type
+        mapping:
+          click: "#/components/schemas/ClickEvent"
+          keyboard: "#/components/schemas/KeyboardEvent"
+      oneOf:
+        - $ref: "#/components/schemas/ClickEvent"
+        - $ref: "#/components/schemas/KeyboardEvent"

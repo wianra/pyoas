@@ -1,0 +1,79 @@
+openapi: "3.0.3"
+info:
+  title: Generic Paginated API (no trailing underscore)
+  version: "1.0.0"
+
+paths:
+  /fleet/drivers:
+    get:
+      operationId: listDrivers
+      tags: [fleet]
+      summary: List drivers (paginated)
+      responses:
+        "200":
+          description: Paginated drivers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagingResult_DriverListItem"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users (paginated)
+      responses:
+        "200":
+          description: Paginated users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagingResult_UserListItem"
+
+components:
+  schemas:
+    DriverListItem:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    PagingResult_DriverListItem:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriverListItem"
+        totalCount:
+          type: integer
+        skip:
+          type: integer
+        pageSize:
+          type: integer
+
+    UserListItem:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+
+    PagingResult_UserListItem:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserListItem"
+        totalCount:
+          type: integer
+        skip:
+          type: integer
+        pageSize:
+          type: integer
