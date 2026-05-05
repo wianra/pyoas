@@ -28,3 +28,8 @@ def multi_tag(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def no_tags(fixtures_dir: Path) -> Path:
     return fixtures_dir / "no_tags.yaml"
+
+
+@pytest.fixture
+def webhooks_31(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "webhooks_3.1.yaml"

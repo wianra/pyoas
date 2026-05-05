@@ -17,6 +17,7 @@ from pyoas.core.config import (
     OutputConfig,
     RouterConfig,
     ServicesConfig,
+    WebhooksConfig,
 )
 from pyoas.fastapi.generator import RouterGenerator
 from pyoas.fastapi.scaffold import ServiceScaffolder
@@ -538,3 +539,134 @@ def test_response_model_exclude_none_off_by_default(petstore_30: Path) -> None:
 
         src = _read(Path(tmp) / "pets.py")
         assert "response_model_exclude_none" not in src
+
+
+# ---------------------------------------------------------------------------
+# Webhook support
+# ---------------------------------------------------------------------------
+
+
+def test_generate_webhooks_warning_when_disabled(webhooks_31: Path, capsys) -> None:
+    """When webhooks.generate=False and spec has webhooks, a warning goes to stderr."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(webhooks_31), tmp)
+        RouterGenerator(cfg).generate()
+        stderr = capsys.readouterr().err
+        assert "webhooks" in stderr.lower()
+
+
+def test_generate_webhooks_no_warning_when_enabled(webhooks_31: Path, capsys) -> None:
+    """When webhooks.generate=True, no warning is emitted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(webhooks_31),
+            output=OutputConfig(models="src/generated/models", routers=tmp),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            webhooks=WebhooksConfig(generate=True),
+        )
+        RouterGenerator(cfg).generate()
+        stderr = capsys.readouterr().err
+        assert "not being generated" not in stderr
+
+
+def test_generate_webhooks_router_output(
+    webhooks_31: Path, snapshot: SnapshotAssertion
+) -> None:
+    """With webhooks.generate=True, the router file includes a webhooks router variable."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(webhooks_31),
+            output=OutputConfig(models="src/generated/models", routers=tmp),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            webhooks=WebhooksConfig(generate=True),
+        )
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "subscriptions.py")
+        assert "webhooks = APIRouter" in src
+        assert "@webhooks.post" in src
+        assert "on_subscription_event" in src
+        assert src == snapshot(name="subscriptions_router_webhooks")
+
+
+def test_generate_webhooks_disabled_no_webhooks_router(webhooks_31: Path) -> None:
+    """With webhooks.generate=False (default), no webhooks router is generated."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(webhooks_31), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "subscriptions.py")
+        assert "webhooks = APIRouter" not in src
+
+
+# ---------------------------------------------------------------------------
+# Multiple 2xx response handling
+# ---------------------------------------------------------------------------
+
+
+def test_generate_multi_response_router(
+    multi_response: Path, snapshot: SnapshotAssertion
+) -> None:
+    """Router generated from a spec with multiple 2xx responses per operation."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(multi_response), tmp)
+        RouterGenerator(cfg).generate()
+
+        output = Path(tmp)
+        assert (output / "items.py").exists()
+        assert _read(output / "items.py") == snapshot(
+            name="multi_response_items_router"
+        )
+
+
+def test_multi_response_union_in_source(multi_response: Path) -> None:
+    """Union type and Optional appear in the generated router source."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(multi_response), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "items.py")
+        # updateItem: 200 Item + 201 CreatedItem → Union
+        assert "Item | CreatedItem" in src
+        # deleteItem: 200 Item + 204 empty → Optional
+        assert "Item | None" in src
+        # createItem: 200+201 same type → just Item (deduplication)
+        assert src.count("response_model=Item") >= 1
+
+
+def test_multi_response_bytes_fallback(tmp_path: Path) -> None:
+    """When JSON + binary are mixed, Response is used and response_model is omitted."""
+    from pyoas.core.parser import SpecParser
+    from pyoas.core.resolver import resolve_refs
+    from pyoas.fastapi.params import resolve_response_type
+
+    spec_src = """
+openapi: "3.0.3"
+info: {title: t, version: "1"}
+paths:
+  /download:
+    get:
+      operationId: downloadItem
+      tags: [items]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: object, properties: {id: {type: integer}}}
+        '206':
+          description: Partial Content
+          content:
+            application/octet-stream: {}
+"""
+    spec_file = tmp_path / "bytes_mix.yaml"
+    spec_file.write_text(spec_src)
+
+    spec_raw = SpecParser(str(spec_file)).load()
+    spec = resolve_refs(spec_raw, str(spec_file))
+    op = spec["paths"]["/download"]["get"]
+    raw_op = spec_raw["paths"]["/download"]["get"]
+    result = resolve_response_type(op, raw_operation=raw_op)
+    assert result == "Response"

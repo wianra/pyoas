@@ -1,0 +1,97 @@
+openapi: "3.0.3"
+info:
+  title: Multi-response test
+  version: "1.0"
+paths:
+  /items/{item_id}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Single 2xx — unchanged behaviour
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+    put:
+      operationId: updateItem
+      tags: [items]
+      summary: Two distinct 2xx types — Union
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: {type: integer}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Item'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreatedItem'}
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      summary: Typed 200 + empty 204 — Optional
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+        '204':
+          description: No Content
+  /items:
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Same type on 200 and 201 — deduplicated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Item'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}
+    CreatedItem:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        created_at: {type: string}

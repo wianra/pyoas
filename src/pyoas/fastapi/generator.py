@@ -64,8 +64,20 @@ class RouterGenerator:
         spec_raw = SpecParser(cfg.spec).load()
         spec = resolve_refs(spec_raw, cfg.spec)
 
-        grouped = extract_tags(spec, default_tag=cfg.default_tag)
-        grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        if spec_raw.get("webhooks") and not cfg.webhooks.generate:
+            typer.echo(
+                "Warning: spec contains webhooks that are not being generated. "
+                "Set webhooks.generate: true in pyoas.yaml to enable.",
+                err=True,
+            )
+
+        include_webhooks = cfg.webhooks.generate
+        grouped = extract_tags(
+            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        )
+        grouped_raw = extract_tags(
+            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        )
 
         if tag_filter:
             grouped = {k: v for k, v in grouped.items() if k in tag_filter}
@@ -73,7 +85,9 @@ class RouterGenerator:
 
         # Build generic name map: {mangled_schema_name: "GenericName[TypeParam]"}
         raw_cs = spec_raw.get("components", {}).get("schemas", {})
-        grouped_raw_all = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        grouped_raw_all = extract_tags(
+            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        )
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw_all)
         generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
         generic_name_map: dict[str, str] = {
@@ -369,10 +383,15 @@ def _build_router_context(
     )
 
     has_any_security = any(op["has_security"] for op in rendered_ops)
+    has_webhooks = any(op.get("is_webhook") for op in rendered_ops)
+    needs_fastapi_response = any(
+        op["response_type"] == "Response" for op in rendered_ops
+    )
     dep_import_path = config.dependencies.import_path or None
 
     return {
         "tag": tag,
+        "has_webhooks": has_webhooks,
         "tag_dirname": tag_dirname,
         "operations": rendered_ops,
         "tag_model_imports": tag_model_imports,
@@ -382,6 +401,7 @@ def _build_router_context(
         "service_dep_fn": service_dep_fn,
         "dep_import_path": dep_import_path,
         "has_any_security": has_any_security,
+        "needs_fastapi_response": needs_fastapi_response,
         "stdlib_imports": stdlib_imports,
         "needs_any": needs_any,
         "needs_annotated": needs_annotated,
@@ -411,6 +431,7 @@ def _render_operation(
     path: str = op_entry["path"]
     operation: dict[str, Any] = op_entry["operation"]
     raw_operation: dict[str, Any] | None = op_entry.get("raw_operation")
+    is_webhook: bool = op_entry.get("is_webhook", False)
 
     operation_id = operation.get("operationId")
     if operation_id:
@@ -447,4 +468,5 @@ def _render_operation(
         "operation_id": operation.get("operationId"),
         "has_security": _has_security(operation, global_security or []),
         "x_extensions": {k: v for k, v in operation.items() if k.startswith("x-")},
+        "is_webhook": is_webhook,
     }

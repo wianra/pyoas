@@ -4,7 +4,7 @@ _Updated: 2026-05-05_
 
 ## Project State
 
-Architecture complete, production-quality implementation. 220 tests, all green (1.43s). Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
+Architecture complete, production-quality implementation. 282 tests, all green. Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
 
 ---
 
@@ -20,6 +20,8 @@ Architecture complete, production-quality implementation. 220 tests, all green (
 | Colored output inconsistency | All scaffolders and generators now use `  wrote  {path}` (green) / `  skipped  {path}` (yellow) uniformly |
 | `generate` summary table | `ScaffoldResult` dataclass aggregates counts across all scaffolders; `_print_summary()` prints an aligned two-column table at the end of `pyoas generate` |
 | `deprecated` model field propagation | Schema properties marked `deprecated: true` now emit `Field(deprecated=True)` on Pydantic model fields; requires Pydantic ≥ 2.9 |
+| `x-enum-varnames` support | `_render_enum_class()` reads `x-enum-varnames` (NSwag/Swagger Codegen extension) and uses those names instead of synthesizing `VALUE_1` etc.; falls back gracefully when absent or too short |
+| OAS 3.1 webhook support | `WebhooksConfig`, `include_webhooks` in `extract_tags`, warning when disabled, `webhooks = APIRouter(...)` in router template, `pyoas init` starter config updated |
 
 ---
 
@@ -45,19 +47,15 @@ Schema properties marked `deprecated: true` now emit `Field(deprecated=True)` co
 
 ---
 
-### 4. `x-enum-varnames` support
+### 4. ~~`x-enum-varnames` support~~ ✓ Done
 
-**Effort:** Small | **Value:** High compatibility — common in NSwag/Swagger Codegen output
-
-`x-enum-varnames` maps enum integer or string values to Python identifiers. Without it, integer enum members get synthetic names (`VALUE_0`, `VALUE_1`) that are meaningless to consumers. Implementation: read `x-enum-varnames` in `types.py` when building `IntEnum`/`StrEnum` members.
+`x-enum-varnames` is now read in `_render_enum_class()` and used (aligned by original enum index, NSwag convention) instead of synthesizing names. Falls back to synthesis for missing/short arrays. Integer enum `Priority` with `x-enum-varnames: [LOW, MEDIUM, HIGH]` now produces `LOW = 1` etc. instead of `VALUE_1 = 1`.
 
 ---
 
-### 5. Webhook support / warning (OAS 3.1)
+### 5. ~~Webhook support / warning (OAS 3.1)~~ ✓ Done
 
-**Effort:** Medium | **Value:** OAS 3.1 completeness
-
-OpenAPI 3.1 adds `webhooks:` alongside `paths:`. Currently silently ignored. At minimum emit a `typer.echo` warning when a spec has webhooks. Ideally treat webhooks like paths — they use the same operation structure and can flow through the existing tag extraction and router generation pipeline with minimal changes.
+`WebhooksConfig(generate: bool = False)` added to config. `extract_tags` gains `include_webhooks` param; when True, iterates `spec["webhooks"]` and stamps `is_webhook: True` on each entry. Both `ModelGenerator` and `RouterGenerator` warn via `typer.echo(..., err=True)` when webhooks are present but `generate=False`. Router template emits a `webhooks = APIRouter(...)` variable and dispatches webhook ops via `@webhooks.method(...)`. `pyoas init` starter config includes `webhooks: generate: false`. New `tests/fixtures/webhooks_3.1.yaml` fixture; 14 new tests across tags, model generator, router generator, and CLI.
 
 ---
 

@@ -381,9 +381,16 @@ def resolve_response_type(
     generic_name_map: dict[str, str] | None = None,
 ) -> str:
     """
-    Return the Python type for the primary success response (2xx).
+    Return the Python type for the 2xx success response(s).
 
-    Falls back to ``None`` if no response schema is found.
+    When multiple 2xx codes are present:
+    - Identical resolved types are deduplicated → single type.
+    - Distinct model types → ``T1 | T2`` union (PEP 604).
+    - Empty response (e.g. 204) alongside a typed response → ``T | None``.
+    - Binary content mixed with model types → ``Response`` (raw passthrough;
+      FastAPI skips serialisation, caller must return a ``Response`` object).
+
+    Falls back to ``"None"`` if no response schema is found anywhere.
     """
     responses = operation.get("responses") or {}
     raw_responses = (raw_operation or {}).get("responses") or {}
@@ -392,6 +399,9 @@ def resolve_response_type(
         key=int,
     )
     operation_id = (raw_operation or {}).get("operationId")
+
+    # Collect one resolved type string per 2xx status code.
+    collected: list[str] = []
     for code in success_codes:
         resp = responses[code]
         content = resp.get("content") or {}
@@ -409,15 +419,39 @@ def resolve_response_type(
                 and schema.get("type") == "object"
                 and schema.get("properties")
             ):
-                return inline_schema_name(operation_id, "Response")
-            return schema_to_python_type(
-                schema,
-                enums_as_literals=enums_as_literals,
-                raw_schema=raw_schema,
-                generic_name_map=generic_name_map,
-            )
-        if content:
-            # Non-JSON response (e.g. text/csv, application/pdf, image/*) — return bytes.
-            return "bytes"
+                collected.append(inline_schema_name(operation_id, "Response"))
+            else:
+                collected.append(
+                    schema_to_python_type(
+                        schema,
+                        enums_as_literals=enums_as_literals,
+                        raw_schema=raw_schema,
+                        generic_name_map=generic_name_map,
+                    )
+                )
+        elif content:
+            # Non-JSON content (e.g. text/csv, application/pdf, image/*).
+            collected.append("bytes")
+        else:
+            # No content body (e.g. 204 No Content).
+            collected.append("None")
 
-    return "None"
+    # Order-preserving deduplication.
+    seen: set[str] = set()
+    unique = [t for t in collected if not (t in seen or seen.add(t))]  # type: ignore[func-returns-value]
+
+    if not unique or unique == ["None"]:
+        return "None"
+    if len(unique) == 1:
+        return unique[0]
+
+    non_none = [t for t in unique if t != "None"]
+    has_empty = "None" in unique
+    model_types = [t for t in non_none if t != "bytes"]
+
+    # bytes mixed with model types → cannot unify; fall back to raw Response.
+    if "bytes" in non_none and model_types:
+        return "Response"
+
+    parts = non_none + (["None"] if has_empty else [])
+    return parts[0] if len(parts) == 1 else " | ".join(parts)

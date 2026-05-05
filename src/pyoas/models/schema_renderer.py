@@ -73,21 +73,29 @@ def _render_enum_class(name: str, schema: dict[str, Any]) -> list[dict[str, Any]
     """Build a StrEnum / IntEnum class descriptor from a component enum schema."""
     raw_type = schema.get("type")
     enum_type = "StrEnum" if raw_type != "integer" else "IntEnum"
+    varnames: list[Any] = schema.get("x-enum-varnames") or []
     members: list[dict[str, str]] = []
     seen_names: set[str] = set()
-    for v in schema.get("enum") or []:
+    for enum_idx, v in enumerate(schema.get("enum") or []):
         if v is None:
             continue
-        raw_str = str(v)
-        member_name = re.sub(r"[^a-zA-Z0-9]+", "_", raw_str).strip("_").upper()
-        if not member_name or member_name[0].isdigit():
-            member_name = f"VALUE_{member_name}"
+        # Prefer x-enum-varnames[enum_idx] (NSwag convention: aligned by original index).
+        if varnames and enum_idx < len(varnames) and varnames[enum_idx]:
+            raw_varname = str(varnames[enum_idx])
+            member_name = re.sub(r"[^a-zA-Z0-9]+", "_", raw_varname).strip("_").upper()
+            if not member_name or member_name[0].isdigit():
+                member_name = f"VALUE_{member_name}"
+        else:
+            raw_str = str(v)
+            member_name = re.sub(r"[^a-zA-Z0-9]+", "_", raw_str).strip("_").upper()
+            if not member_name or member_name[0].isdigit():
+                member_name = f"VALUE_{member_name}"
         # Deduplicate
         base = member_name
-        idx = 1
+        dup_idx = 1
         while member_name in seen_names:
-            member_name = f"{base}_{idx}"
-            idx += 1
+            member_name = f"{base}_{dup_idx}"
+            dup_idx += 1
         seen_names.add(member_name)
         members.append({"name": member_name, "value": repr(v)})
     return [

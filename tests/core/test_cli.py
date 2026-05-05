@@ -609,3 +609,37 @@ def test_diff_detects_missing_service_methods(tmp_path: Path) -> None:
     result = runner.invoke(app, ["diff", "--config", str(cfg)])
     assert result.exit_code == 1
     assert "::" in result.output  # format: "path/file.py::missing_fn"
+
+
+# ---------------------------------------------------------------------------
+# Webhook warning
+# ---------------------------------------------------------------------------
+
+
+def test_models_emits_webhook_warning_when_disabled(tmp_path: Path) -> None:
+    """pyoas models warns on stderr when spec has webhooks but webhooks.generate is false."""
+    cfg = _write_config(tmp_path, FIXTURES / "webhooks_3.1.yaml")
+    result = runner.invoke(app, ["models", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "webhooks" in result.output.lower()
+
+
+def test_models_no_webhook_warning_when_enabled(tmp_path: Path) -> None:
+    """pyoas models does NOT warn when webhooks.generate is true."""
+    cfg = _write_config(
+        tmp_path, FIXTURES / "webhooks_3.1.yaml", webhooks={"generate": True}
+    )
+    result = runner.invoke(app, ["models", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "not being generated" not in result.output
+
+
+def test_init_config_contains_webhooks_section(tmp_path: Path) -> None:
+    """pyoas init emits webhooks.generate: false in the starter config."""
+    out = tmp_path / "pyoas.yaml"
+    runner.invoke(
+        app, ["init", str(FIXTURES / "petstore_3.0.yaml"), "--output", str(out)]
+    )
+    content = out.read_text()
+    assert "webhooks:" in content
+    assert "generate: false" in content

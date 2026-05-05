@@ -172,3 +172,94 @@ def test_op_level_params_take_precedence_over_path_level() -> None:
     id_params = [p for p in op_params if p.get("name") == "id"]
     assert len(id_params) == 1  # no duplicate
     assert id_params[0]["schema"] == {"type": "string"}  # op-level wins
+
+
+# ---------------------------------------------------------------------------
+# Webhook support (OAS 3.1)
+# ---------------------------------------------------------------------------
+
+_WEBHOOK_SPEC: dict = {
+    "paths": {
+        "/subscriptions": {
+            "post": {
+                "operationId": "createSubscription",
+                "tags": ["subscriptions"],
+                "responses": {},
+            }
+        }
+    },
+    "webhooks": {
+        "onSubscriptionEvent": {
+            "post": {
+                "operationId": "onSubscriptionEvent",
+                "tags": ["subscriptions"],
+                "responses": {},
+            }
+        }
+    },
+}
+
+
+def test_webhooks_excluded_by_default() -> None:
+    """Webhook operations are NOT included when include_webhooks=False (default)."""
+    grouped = extract_tags(_WEBHOOK_SPEC)
+    assert "subscriptions" in grouped
+    # Only the path operation; webhook excluded
+    assert len(grouped["subscriptions"]) == 1
+    assert grouped["subscriptions"][0]["path"] == "/subscriptions"
+
+
+def test_webhooks_included_when_flag_set() -> None:
+    """Webhook operations ARE included when include_webhooks=True."""
+    grouped = extract_tags(_WEBHOOK_SPEC, include_webhooks=True)
+    assert "subscriptions" in grouped
+    assert len(grouped["subscriptions"]) == 2
+    webhook_ops = [op for op in grouped["subscriptions"] if op.get("is_webhook")]
+    assert len(webhook_ops) == 1
+    assert webhook_ops[0]["path"] == "onSubscriptionEvent"
+
+
+def test_webhook_operations_have_is_webhook_flag() -> None:
+    """All webhook operations carry is_webhook=True; path ops carry is_webhook=False."""
+    grouped = extract_tags(_WEBHOOK_SPEC, include_webhooks=True)
+    for op in grouped["subscriptions"]:
+        assert "is_webhook" in op
+        if op["path"] == "/subscriptions":
+            assert op["is_webhook"] is False
+        else:
+            assert op["is_webhook"] is True
+
+
+def test_webhook_operations_have_required_keys() -> None:
+    """Webhook operation entries have method, path, operation, is_webhook."""
+    grouped = extract_tags(_WEBHOOK_SPEC, include_webhooks=True)
+    for op in grouped["subscriptions"]:
+        assert "method" in op
+        assert "path" in op
+        assert "operation" in op
+        assert "is_webhook" in op
+
+
+def test_webhooks_use_default_tag_when_untagged() -> None:
+    """Webhook operations with no tags fall back to default_tag."""
+    spec: dict = {
+        "webhooks": {"onEvent": {"post": {"operationId": "onEvent", "responses": {}}}}
+    }
+    grouped = extract_tags(spec, default_tag="default", include_webhooks=True)
+    assert "default" in grouped
+    assert grouped["default"][0]["is_webhook"] is True
+
+
+def test_no_webhooks_key_does_not_error() -> None:
+    """Specs with no webhooks key are unaffected when include_webhooks=True."""
+    spec: dict = {"paths": {"/items": {"get": {"tags": ["items"], "responses": {}}}}}
+    grouped = extract_tags(spec, include_webhooks=True)
+    assert "items" in grouped
+    assert all(not op.get("is_webhook") for op in grouped["items"])
+
+
+def test_non_dict_webhook_item_is_skipped() -> None:
+    """Non-dict entries under webhooks are skipped gracefully."""
+    spec: dict = {"webhooks": {"badEntry": "not a dict"}}
+    grouped = extract_tags(spec, include_webhooks=True)
+    assert grouped == {}

@@ -68,3 +68,13 @@ def inline_schemas(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def secured(fixtures_dir: Path) -> Path:
     return fixtures_dir / "secured.yaml"
+
+
+@pytest.fixture
+def webhooks_31(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "webhooks_3.1.yaml"
+
+
+@pytest.fixture
+def multi_response(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "multi_response.yaml"

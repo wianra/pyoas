@@ -11,6 +11,7 @@ HTTP_METHODS = frozenset(
 def extract_tags(
     spec: dict[str, Any],
     default_tag: str = "default",
+    include_webhooks: bool = False,
 ) -> dict[str, list[dict[str, Any]]]:
     """
     Group all path operations in the spec by their first tag.
@@ -23,7 +24,11 @@ def extract_tags(
             "method":    "get",
             "path":      "/users/{id}",
             "operation": { ... },   # the raw operation object
+            "is_webhook": False,    # True for OAS 3.1 webhook operations
         }
+
+    When ``include_webhooks`` is True, operations from the top-level
+    ``webhooks:`` map (OAS 3.1) are included alongside path operations.
     """
     grouped: dict[str, list[dict[str, Any]]] = {}
 
@@ -38,10 +43,12 @@ def extract_tags(
             stacklevel=2,
         )
 
-    for path, path_item in spec.get("paths", {}).items():
-        if not isinstance(path_item, dict):
-            continue
-
+    def _process_path_item(
+        path_or_name: str,
+        path_item: dict[str, Any],
+        *,
+        is_webhook: bool,
+    ) -> None:
         path_level_params: list[dict[str, Any]] = [
             p for p in (path_item.get("parameters") or []) if isinstance(p, dict)
         ]
@@ -73,8 +80,24 @@ def extract_tags(
             tag = op_tags[0] if op_tags else default_tag
 
             grouped.setdefault(tag, []).append(
-                {"method": method, "path": path, "operation": operation}
+                {
+                    "method": method,
+                    "path": path_or_name,
+                    "operation": operation,
+                    "is_webhook": is_webhook,
+                }
             )
+
+    for path, path_item in spec.get("paths", {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        _process_path_item(path, path_item, is_webhook=False)
+
+    if include_webhooks:
+        for wh_name, path_item in spec.get("webhooks", {}).items():
+            if not isinstance(path_item, dict):
+                continue
+            _process_path_item(wh_name, path_item, is_webhook=True)
 
     return grouped
 

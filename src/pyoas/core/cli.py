@@ -110,6 +110,8 @@ skills:
   output: .claude/commands
   overwrite: false
   services_pattern: none  # none | repository | domain
+webhooks:
+  generate: false  # set to true to generate code for OAS 3.1 webhooks
 """
     out.write_text(content, encoding="utf-8")
     typer.echo(f"Created {output}")

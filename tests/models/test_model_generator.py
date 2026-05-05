@@ -21,10 +21,11 @@ from pyoas.core.config import (
     FormatConfig,
     ModelConfig,
     OutputConfig,
+    WebhooksConfig,
 )
 from pyoas.models.classifier import _collect_shared_schemas
 from pyoas.models.generator import ModelGenerator
-from pyoas.models.schema_renderer import _render_schema
+from pyoas.models.schema_renderer import _render_enum_class, _render_schema
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -468,8 +469,41 @@ def test_generate_enum_as_str_enum(
         assert "class PetStatus(StrEnum):" in src
         assert "AVAILABLE = 'available'" in src
         assert "class Priority(IntEnum):" in src
-        assert "VALUE_1 = 1" in src
+        assert "LOW = 1" in src
         assert src == snapshot(name="pets_models_str_enum")
+
+
+def test_x_enum_varnames_used_when_present() -> None:
+    """x-enum-varnames overrides synthesized member names in IntEnum classes."""
+    schema = {
+        "type": "integer",
+        "enum": [1, 2, 3],
+        "x-enum-varnames": ["LOW", "MEDIUM", "HIGH"],
+    }
+    result = _render_enum_class("Priority", schema)
+    members = result[0]["members"]
+    assert [m["name"] for m in members] == ["LOW", "MEDIUM", "HIGH"]
+    assert [m["value"] for m in members] == ["1", "2", "3"]
+
+
+def test_x_enum_varnames_fallback() -> None:
+    """Falls back to synthesis when x-enum-varnames is absent, empty, or too short."""
+    # Absent
+    r = _render_enum_class("P", {"type": "integer", "enum": [1, 2, 3]})
+    assert [m["name"] for m in r[0]["members"]] == ["VALUE_1", "VALUE_2", "VALUE_3"]
+
+    # Too short — partial override, synthesis for remainder
+    r = _render_enum_class(
+        "P",
+        {"type": "integer", "enum": [1, 2, 3], "x-enum-varnames": ["LOW", "MEDIUM"]},
+    )
+    assert [m["name"] for m in r[0]["members"]] == ["LOW", "MEDIUM", "VALUE_3"]
+
+    # Empty list — synthesize all
+    r = _render_enum_class(
+        "P", {"type": "integer", "enum": [1, 2, 3], "x-enum-varnames": []}
+    )
+    assert [m["name"] for m in r[0]["members"]] == ["VALUE_1", "VALUE_2", "VALUE_3"]
 
 
 _ORPHAN_SPEC = """\
@@ -576,3 +610,59 @@ def test_generate_deprecated_fields(
             line.startswith("name:") and "deprecated" in line for line in lines
         )
         assert src == snapshot(name="items_models_deprecated_fields")
+
+
+# ---------------------------------------------------------------------------
+# Webhook support
+# ---------------------------------------------------------------------------
+
+
+def test_generate_webhooks_warning_when_disabled(webhooks_31: Path, capsys) -> None:
+    """When webhooks.generate=False and spec has webhooks, a warning is printed to stderr."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(webhooks_31), tmp)
+        # webhooks.generate defaults to False
+        ModelGenerator(cfg).generate()
+        stderr = capsys.readouterr().err
+        assert "webhooks" in stderr.lower()
+
+
+def test_generate_webhooks_no_warning_when_enabled(webhooks_31: Path, capsys) -> None:
+    """When webhooks.generate=True, no webhook warning is emitted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(webhooks_31),
+            output=OutputConfig(models=tmp, routers=""),
+            model_config=ModelConfig(
+                extra="ignore", frozen=False, populate_by_name=True
+            ),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            webhooks=WebhooksConfig(generate=True),
+        )
+        ModelGenerator(cfg).generate()
+        stderr = capsys.readouterr().err
+        assert "not being generated" not in stderr
+
+
+def test_generate_webhooks_produces_models(
+    webhooks_31: Path, snapshot: SnapshotAssertion
+) -> None:
+    """With webhooks.generate=True, webhook schemas appear in the generated model file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(webhooks_31),
+            output=OutputConfig(models=tmp, routers=""),
+            model_config=ModelConfig(
+                extra="ignore", frozen=False, populate_by_name=True
+            ),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            webhooks=WebhooksConfig(generate=True),
+        )
+        ModelGenerator(cfg).generate()
+
+        src = (Path(tmp) / "subscriptions.py").read_text()
+        assert "class Subscription" in src
+        assert "class SubscriptionEvent" in src
+        assert src == snapshot(name="subscriptions_models_webhooks")

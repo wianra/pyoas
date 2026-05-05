@@ -58,9 +58,21 @@ class ModelGenerator:
         spec_raw = SpecParser(cfg.spec).load()
         spec = resolve_refs(spec_raw, cfg.spec)
 
-        grouped = extract_tags(spec, default_tag=cfg.default_tag)
+        if spec_raw.get("webhooks") and not cfg.webhooks.generate:
+            typer.echo(
+                "Warning: spec contains webhooks that are not being generated. "
+                "Set webhooks.generate: true in pyoas.yaml to enable.",
+                err=True,
+            )
+
+        include_webhooks = cfg.webhooks.generate
+        grouped = extract_tags(
+            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        )
         # Use raw spec for schema-tag mapping so $ref strings are still intact.
-        grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        grouped_raw = extract_tags(
+            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        )
         # Keep the unfiltered grouped_raw so unreferenced detection is not confused
         # by schemas that are referenced by non-filtered tags.
         grouped_raw_all = grouped_raw

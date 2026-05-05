@@ -5,7 +5,7 @@ from __future__ import annotations
 {% if _typing_names %}
 from typing import {{ _typing_names | join(", ") }}
 {% endif %}
-from fastapi import APIRouter{% if service_import_path or (dep_import_path and has_any_security) %}, Depends{% endif %}{% for cls in fastapi_param_classes %}, {{ cls }}{% endfor %}
+from fastapi import APIRouter{% if service_import_path or (dep_import_path and has_any_security) %}, Depends{% endif %}{% if needs_fastapi_response %}, Response{% endif %}{% for cls in fastapi_param_classes %}, {{ cls }}{% endfor %}
 
 {% for imp in stdlib_imports %}
 {{ imp }}
@@ -24,10 +24,13 @@ from {{ dep_import_path }}.auth import AuthContext, get_auth_context
 {% endif %}
 
 router = APIRouter(tags=["{{ tag }}"])
+{% if has_webhooks %}
+webhooks = APIRouter(tags=["{{ tag }}"])
+{% endif %}
 
 
 {% for op in operations %}
-@router.{{ op.method }}("{{ op.path }}"{% if op.response_type and op.response_type != "None" %}, response_model={{ op.response_type }}{% endif %}{% if op.status_code != 200 %}, status_code={{ op.status_code }}{% endif %}{% if op.deprecated %}, deprecated=True{% endif %}{% if op.summary %}, summary="{{ op.summary }}"{% endif %}{% if response_model_exclude_none and op.response_type and op.response_type != "None" %}, response_model_exclude_none=True{% endif %}{% if response_model_exclude_unset and op.response_type and op.response_type != "None" %}, response_model_exclude_unset=True{% endif %})
+@{% if op.is_webhook %}webhooks{% else %}router{% endif %}.{{ op.method }}("{{ op.path }}"{% if op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model={{ op.response_type }}{% endif %}{% if op.status_code != 200 %}, status_code={{ op.status_code }}{% endif %}{% if op.deprecated %}, deprecated=True{% endif %}{% if op.summary %}, summary="{{ op.summary }}"{% endif %}{% if response_model_exclude_none and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_none=True{% endif %}{% if response_model_exclude_unset and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_unset=True{% endif %})
 {% set _has_kwonly_params = op.parameters or (op.has_security and dep_import_path) or service_import_path %}
 async def {{ op.function_name }}(
 {% if _has_kwonly_params %}    *,

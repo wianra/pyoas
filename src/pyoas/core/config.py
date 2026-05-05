@@ -90,6 +90,11 @@ class DependenciesConfig:
 
 
 @dataclass
+class WebhooksConfig:
+    generate: bool = False
+
+
+@dataclass
 class Config:
     spec: str
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -103,6 +108,7 @@ class Config:
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     router: RouterConfig = field(default_factory=RouterConfig)
     dependencies: DependenciesConfig = field(default_factory=DependenciesConfig)
+    webhooks: WebhooksConfig = field(default_factory=WebhooksConfig)
 
 
 def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
@@ -121,6 +127,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     skl = data.get("skills", {})
     rtr = data.get("router", {})
     dep = data.get("dependencies", {})
+    wh = data.get("webhooks", {})
 
     source_root = out.get("source_root", "src")
     models_rel = out.get("models", "src/generated/models")
@@ -198,6 +205,9 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             output=_resolve(dep_output),
             overwrite=dep.get("overwrite", False),
             import_path=dep.get("import_path", ""),
+        ),
+        webhooks=WebhooksConfig(
+            generate=wh.get("generate", False),
         ),
     )
 

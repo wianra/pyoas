@@ -250,6 +250,111 @@ def test_resolve_response_type_no_content() -> None:
 
 
 # ---------------------------------------------------------------------------
+# resolve_response_type — multiple 2xx responses
+# ---------------------------------------------------------------------------
+
+
+def _json_response(schema: dict) -> dict:
+    return {"content": {"application/json": {"schema": schema}}}
+
+
+def test_resolve_response_type_single_2xx_unchanged() -> None:
+    """Single 2xx response — behaviour unchanged."""
+    operation = {
+        "responses": {"200": _json_response({"$ref": "#/components/schemas/Item"})}
+    }
+    raw = {"responses": {"200": _json_response({"$ref": "#/components/schemas/Item"})}}
+    assert resolve_response_type(operation, raw_operation=raw) == "Item"
+
+
+def test_resolve_response_type_same_type_deduplicated() -> None:
+    """200 and 201 both resolve to the same type — deduplication returns a single type."""
+    operation = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "201": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    raw = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "201": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_type(operation, raw_operation=raw) == "Item"
+
+
+def test_resolve_response_type_union_for_distinct_types() -> None:
+    """200 and 201 with different schemas produce a union."""
+    operation = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "201": _json_response({"$ref": "#/components/schemas/CreatedItem"}),
+        }
+    }
+    raw = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "201": _json_response({"$ref": "#/components/schemas/CreatedItem"}),
+        }
+    }
+    result = resolve_response_type(operation, raw_operation=raw)
+    assert result == "Item | CreatedItem"
+
+
+def test_resolve_response_type_optional_when_204_present() -> None:
+    """200 with schema + 204 (empty) → T | None."""
+    operation = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "204": {},
+        }
+    }
+    raw = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "204": {},
+        }
+    }
+    result = resolve_response_type(operation, raw_operation=raw)
+    assert result == "Item | None"
+
+
+def test_resolve_response_type_bytes_fallback_when_mixed() -> None:
+    """JSON model + binary content on different 2xx codes → Response fallback."""
+    operation = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "206": {
+                "content": {
+                    "application/octet-stream": {
+                        "schema": {"type": "string", "format": "binary"}
+                    }
+                }
+            },
+        }
+    }
+    raw = {
+        "responses": {
+            "200": _json_response({"$ref": "#/components/schemas/Item"}),
+            "206": {"content": {"application/octet-stream": {}}},
+        }
+    }
+    result = resolve_response_type(operation, raw_operation=raw)
+    assert result == "Response"
+
+
+def test_resolve_response_type_bytes_only_no_fallback() -> None:
+    """Single binary response (no JSON) → 'bytes', not 'Response'."""
+    operation = {
+        "responses": {
+            "200": {"content": {"application/pdf": {}}},
+        }
+    }
+    assert resolve_response_type(operation) == "bytes"
+
+
+# ---------------------------------------------------------------------------
 # _annotated_base_type
 # ---------------------------------------------------------------------------
 

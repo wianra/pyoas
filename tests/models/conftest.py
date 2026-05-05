@@ -63,3 +63,8 @@ def component_enums(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def deprecated_fields(fixtures_dir: Path) -> Path:
     return fixtures_dir / "deprecated_fields.yaml"
+
+
+@pytest.fixture
+def webhooks_31(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "webhooks_3.1.yaml"
