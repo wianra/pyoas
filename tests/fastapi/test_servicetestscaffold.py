@@ -18,7 +18,7 @@ from pyoas.core.config import (
     ServicesConfig,
     TestsConfig,
 )
-from pyoas.fastapi.servicetestscaffold import ServiceTestScaffolder
+from pyoas.fastapi.servicetestscaffold import ServiceTestScaffolder, _success_test_name
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -325,3 +325,62 @@ def test_snapshot(petstore_30: Path, snapshot: SnapshotAssertion) -> None:
         assert _read(Path(tmp) / "test_pets_service.py") == snapshot(
             name="test_pets_service_30"
         )
+
+
+# ---------------------------------------------------------------------------
+# _success_test_name unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_put_uses_updates_resource_name() -> None:
+    assert _success_test_name("put", "Pet") == "test_updates_resource"
+
+
+def test_patch_uses_updates_resource_name() -> None:
+    assert _success_test_name("patch", "Pet") == "test_updates_resource"
+
+
+def test_get_none_response_uses_returns_empty() -> None:
+    assert _success_test_name("get", "None") == "test_returns_empty_response"
+
+
+# ---------------------------------------------------------------------------
+# tag_filter
+# ---------------------------------------------------------------------------
+
+
+def test_tag_filter_restricts_scaffolding(petstore_30: Path) -> None:
+    """scaffold(tag_filter=…) only creates files for matching tags."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(petstore_30), tmp)
+        ServiceTestScaffolder(cfg).scaffold(tag_filter=["pets"])
+        assert (Path(tmp) / "test_pets_service.py").exists()
+        assert not (Path(tmp) / "test_store_service.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# append path — renders stubs for new operations
+# ---------------------------------------------------------------------------
+
+
+def test_append_new_operations_renders_stubs() -> None:
+    """When a file exists but is missing a class, the scaffolder appends the stub."""
+    with tempfile.TemporaryDirectory() as tmp:
+        spec_path = _write_spec(tmp, _MINIMAL_SPEC)
+        tests_out = tmp + "/tests"
+        cfg = _make_config(spec_path, tests_out, overwrite=False)
+
+        # First scaffold: write all classes
+        ServiceTestScaffolder(cfg).scaffold()
+        test_file = Path(tests_out) / "test_pets_service.py"
+
+        # Remove one class marker so it looks "missing" on the next run
+        content = test_file.read_text()
+        content = content.replace("class TestGetPetService:", "class __removed__:")
+        test_file.write_text(content)
+
+        # Second scaffold: should detect and append the missing class
+        result = ServiceTestScaffolder(cfg).scaffold()
+        final = test_file.read_text()
+        assert "class TestGetPetService:" in final
+        assert result.appended_items == 1

@@ -1,23 +1,32 @@
 # pyoas Development Roadmap
 
-_Analysis date: 2026-05-04_
+_Updated: 2026-05-04_
 
 ## Project State
 
-Architecture complete, production-quality implementation. 220 tests, all green (1.55s). Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format.
+Architecture complete, production-quality implementation. 220 tests, all green (1.43s). Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
+
+---
+
+## Confirmed Closed
+
+| Item | Notes |
+|---|---|
+| `packages/` dead weight | Deleted — code lives entirely under `src/pyoas/` |
+| `diff` format inconsistency | Fixed — `diff` deep-copies config and inherits `format.enabled`, both sides formatted identically |
+| `deprecated=True` on router operations | Router decorator emits `deprecated=True` when spec marks operation deprecated |
+| `pyoas --version` flag | Added via `@app.callback()` + `importlib.metadata.version("pyoas")` |
+| Warning noise (`warnings.warn`) | Replaced with `typer.echo(..., err=True)` — no more Python stacktrace pointers |
+| Colored output inconsistency | All scaffolders and generators now use `  wrote  {path}` (green) / `  skipped  {path}` (yellow) uniformly |
+| `generate` summary table | `ScaffoldResult` dataclass aggregates counts across all scaffolders; `_print_summary()` prints an aligned two-column table at the end of `pyoas generate` |
 
 ---
 
 ## Known Issues
 
-### `packages/` dead weight
-`packages/specgen-{core,models,fastapi,claude}/src/specgen/` are completely empty stubs — remnants of an earlier namespace-package design. Code lives entirely under `src/pyoas/`. Either delete them (if single-package-with-extras is final) or properly implement as PEP 420 namespace packages with working `pyproject.toml` files.
+### Deprecated model fields not propagated
 
-### README/docs package table naming
-The package table in `README.md` and `docs/index.md` lists `pyoas` in all three rows. The package names are not differentiated, which is confusing to new users.
-
-### `diff` command format inconsistency
-`diff` generates to a temp dir with `format.enabled = False`, then compares text against on-disk files that were generated with formatting enabled. Comparison is between unformatted and formatted output → false positives in CI. Fix: run `ruff format` on temp output before comparing, or normalize both sides before comparison.
+`deprecated: true` on schema *properties* is ignored. Operations get `deprecated=True` in the router decorator, but Pydantic model fields don't get `Field(deprecated=True)` (Pydantic 2.9+). Inconsistent — half the spec's deprecation signal is dropped.
 
 ---
 
@@ -25,17 +34,17 @@ The package table in `README.md` and `docs/index.md` lists `pyoas` in all three 
 
 Ordered by impact and natural sequencing.
 
-### 1. Clean up `packages/` directory
-**Effort:** Low | **Value:** Hygiene / contributor clarity
+### 1. ~~`pyoas --version` and colored output~~ ✓ Done
 
-Delete the four empty `packages/specgen-*` directories or properly implement them. Leaving empty workspace members misleads contributors and may confuse `uv workspace` tooling.
+`--version` flag, uniform colored output, and `generate` summary table all shipped.
 
 ---
 
-### 2. CLI integration test suite
-**Effort:** Medium | **Value:** High — zero CLI-layer coverage right now
+### 2. Complete CLI integration test suite
 
-The `init`, `validate`, `generate`, `diff`, and `scaffold` commands have no test coverage at the CLI layer. All testing happens at the generator API level. Add a test module using `typer.testing.CliRunner`.
+**Effort:** Medium | **Value:** High — most commands have no CLI-layer coverage
+
+`diff` has CliRunner tests. `init`, `validate`, `generate`, and `scaffold` subcommands do not. Add a `tests/core/test_cli.py` module:
 
 ```python
 from typer.testing import CliRunner
@@ -45,87 +54,129 @@ result = runner.invoke(app, ["validate", "--config", str(cfg_path)])
 assert result.exit_code == 0
 ```
 
-Scenarios to cover: wrong config path, invalid spec, `--tags` filtering, exit codes for `diff`, scaffold subcommands.
+Scenarios: wrong config path, invalid spec, `--tags` filtering, exit codes, scaffold subcommands (`services`, `tests`, `dependencies`, `skills`), missing extras (ImportError path).
 
 ---
 
-### 3. Fix `diff` format inconsistency
-**Effort:** Small | **Value:** Correctness — affects CI users
+### 3. Deprecated model field propagation
 
-See _Known Issues_ above. Options:
-- Run `format_output()` on temp files before comparing
-- Compare AST-normalized content instead of raw text
+**Effort:** Small | **Value:** Correctness / consistency with router behavior
+
+Emit `Field(deprecated=True)` for schema properties marked `deprecated: true`. Requires Pydantic ≥ 2.9 (already in the dependency range). The model template's `Field(...)` construction needs a `deprecated` flag in the context dict from `context.py`.
 
 ---
 
-### 4. Webhook support / warning (OAS 3.1)
+### 4. `x-enum-varnames` support
+
+**Effort:** Small | **Value:** High compatibility — common in NSwag/Swagger Codegen output
+
+`x-enum-varnames` maps enum integer or string values to Python identifiers. Without it, integer enum members get synthetic names (`VALUE_0`, `VALUE_1`) that are meaningless to consumers. Implementation: read `x-enum-varnames` in `types.py` when building `IntEnum`/`StrEnum` members.
+
+---
+
+### 5. Webhook support / warning (OAS 3.1)
+
 **Effort:** Medium | **Value:** OAS 3.1 completeness
 
-OpenAPI 3.1 adds a `webhooks:` key alongside `paths:`. Currently silently ignored. At minimum emit a warning when a spec has webhooks. Ideally treat webhooks like paths and generate router stubs — they follow the same operation structure.
-
----
-
-### 5. `pyoas --version` and colored output
-**Effort:** Small | **Value:** DX
-
-No `--version` flag exists. Trivial with typer:
-```python
-@app.callback()
-def main(version: bool = typer.Option(None, "--version", is_eager=True, callback=...)):
-    ...
-```
-
-Also: generation output (written file paths, schema warnings) has no color. Use `typer.style()` or rich markup to make output scannable.
+OpenAPI 3.1 adds `webhooks:` alongside `paths:`. Currently silently ignored. At minimum emit a `typer.echo` warning when a spec has webhooks. Ideally treat webhooks like paths — they use the same operation structure and can flow through the existing tag extraction and router generation pipeline with minimal changes.
 
 ---
 
 ### 6. Multiple 2xx response handling
+
 **Effort:** Medium | **Value:** Correctness for real-world specs
 
-`resolve_response_type()` picks the first 2xx response. Operations with multiple distinct response schemas (e.g., 200 + 201, or 200 + 204) should produce a `Union` type or fall back to `Response`. Affects correctness for specs like GitHub's API.
+`resolve_response_type()` picks the first 2xx response. Operations with multiple distinct 2xx schemas (200 + 201, 200 + 204) should produce a `Union` type or fall back to `fastapi.Response`. Affects correctness for high-coverage specs like GitHub's and Stripe's.
 
 ---
 
-### 7. Real-world spec integration tests
+### 7. `pyoas doctor` diagnostic command
+
+**Effort:** Small–Medium | **Value:** DX — prevents confusing generation failures
+
+A pre-flight check command that statically reports common problems before `generate` fails silently or produces garbage:
+
+- Operations missing `operationId` (breaks synthesized names for inline schemas and test methods)
+- Schemas with no `type` and no `$ref` (silently become `Any`)
+- Tag names that normalize to the same `dirname` (silently collapse files)
+- `services.import_path` pointing to a non-existent module
+- `components.schemas` entries with unresolvable `$ref` chains
+- Duplicate `operationId` values
+
+Zero runtime cost; runs entirely against the parsed spec before any generation.
+
+---
+
+### 8. `pyoas drift` standalone command
+
+**Effort:** Small | **Value:** CI use case — detect service drift without writing files
+
+Drift detection is currently embedded in `ServiceScaffolder.scaffold()` and only surfaces when you run `scaffold`. A dedicated `pyoas drift` command reports orphaned service methods and signature changes (operations that no longer match the spec) *without* writing anything. Useful as a CI gate: "did someone update the spec without updating the service?"
+
+Implementation: extract the drift-detection logic from `ServiceScaffolder` into a pure function; `pyoas drift` calls it and exits 1 if drift is found.
+
+---
+
+### 9. `allOf` inheritance in model generation
+
+**Effort:** Medium | **Value:** Cleaner generated code for polymorphic specs
+
+`allOf: [{$ref: "#/components/schemas/Animal"}, {properties: ...}]` is currently flattened into a single model with all merged properties. Pydantic v2 supports true class inheritance — generating `class Dog(Animal): ...` produces cleaner, more idiomatic code that preserves the spec's intent and reduces repetition. Detection rule: `allOf` with exactly one `$ref` and additional `properties` → inheritance; `allOf` with multiple `$ref` → flatten (Python has no clean n-way Pydantic inheritance).
+
+---
+
+### 10. Real-world spec integration tests
+
 **Effort:** Medium | **Value:** High edge-case discovery
 
-Hand-crafted fixtures miss real-world patterns. Add a `tests/integration/` suite (marked `@pytest.mark.integration`, skipped by default) that runs against published specs: GitHub, Stripe, OpenAI, Kubernetes. These exercise discriminated unions, `x-` extensions, webhooks, large allOf chains, and hundreds of tags.
+Hand-crafted fixtures miss real-world patterns. Add `tests/integration/` (marked `@pytest.mark.integration`, skipped by default in CI unless `--run-integration` is passed) running against published specs: GitHub REST API, Stripe, OpenAI, Kubernetes. These surface discriminated union edge cases, `x-` extensions, large `allOf` chains, hundreds of tags, and implicit webhook patterns.
+
+Tie to the shared `ParsedSpec` refactor (see Backlog) before running against Kubernetes — parsing twice per `generate` on a 10k-line spec is slow.
 
 ---
 
-### 8. Multipart/form complex type resolution
+### 11. Multipart/form complex type resolution
+
 **Effort:** Medium | **Value:** Completeness
 
-`params.py:325,348` falls back to `bytes` + TODO comment when form fields can't be resolved individually. Handle inline-property schemas to emit typed `Form(...)` parameters. Extend `tests/fixtures/form_upload.yaml` to cover this path.
+`params.py:325,348` falls back to `Annotated[bytes, Body()]` + TODO comment when form fields can't be resolved to individual `Form(...)` parameters. Handle inline-property schemas in form content to emit properly typed multipart parameters. Extend `tests/fixtures/form_upload.yaml` with a complex inline schema to cover this path.
 
 ---
 
-### 9. `deprecated` field/operation handling
-**Effort:** Small–Medium | **Value:** DX for API consumers
+### 12. First PyPI release (v0.1.0)
 
-`deprecated: true` on operations and schema properties is currently ignored. Options:
-- Router stubs: `# deprecated` comment or `warnings.warn()` inside the stub
-- Model fields: `Field(deprecated=True)` (Pydantic 2.9+) or `# deprecated` comment
-
----
-
-### 10. First PyPI release (v0.1.0)
 **Effort:** Medium | **Value:** Milestone — unlocks `uv add pyoas`
 
-Publish workflow (`publish.yml`) exists with OIDC auth. Commitizen is in pre-commit config. Prerequisites before tagging:
-- [ ] Fix README/docs package table naming
-- [ ] Clean up `packages/` stubs
-- [ ] Fix `diff` format inconsistency
-- Tag `v0.1.0` → workflow publishes to PyPI
+`publish.yml` exists with OIDC auth. Commitizen is in pre-commit config. Prerequisites before tagging:
+
+- [ ] `pyoas --version` reads from package metadata — ✓ Done
+- [ ] Tag `v0.1.0` → workflow publishes to PyPI
 
 ---
 
-## Lower Priority / Backlog
+## Medium-Term Feature Directions
+
+### Typed client generation (`pyoas[client]`)
+
+Generate an async `httpx`-based client with one typed method per operation, matching the same parameter signatures as the generated service stubs. The parameter and response-type machinery already exists in `params.py` and `generator.py`; the missing piece is a client template and a `ClientGenerator` orchestrator. Natural `pyoas[client]` extra.
+
+### `pyoas doctor` → `pyoas mock` (mock server)
+
+Generate a runnable FastAPI app that serves spec `examples` (or factory-generated data) instead of calling real service implementations. The endpoint structure is already generated; the missing piece is an example extractor and a response factory using polyfactory. High value for frontend/consumer teams doing API-first development. Natural `pyoas[mock]` extra.
+
+### Response validation middleware (dev-mode)
+
+A `pyoas scaffold middleware` command that generates FastAPI middleware validating response payloads against the spec schema at runtime (dev/test only). Closes the loop between generated router types and service implementations — catches fields returned by a service that aren't in the spec before they reach the client.
+
+---
+
+## Backlog
 
 | Item | Notes |
 |---|---|
+| Shared `ParsedSpec` in `generate` | `ModelGenerator` and `RouterGenerator` each independently load/resolve the spec; a shared `ParsedSpec(raw, resolved)` value object would halve parse time for large specs — prerequisite before real-world integration tests |
+| `services_pattern` test coverage | `none \| repository \| domain` wired to the Claude skill template but has no dedicated test |
 | Watch mode tests | Hard to test deterministically; mock `watchdog.Observer` instead of hitting the filesystem event loop |
-| Shared spec parsing in `generate` | `ModelGenerator` and `RouterGenerator` each independently load/resolve the spec; a shared `ParsedSpec` value object would halve parse time for large specs |
-| `x-enum-varnames` extension | Maps enum values to Python identifiers; common in NSwag/Swagger codegen output; small lift, high compat improvement |
+| OAS 3.1 `anyOf` nullable edge case | Verify `anyOf: [{$ref: X}, {type: "null"}]` is correctly rendered as `Optional[X]` across all nested/resolved cases; add a 3.1-specific nullable fixture |
+| `py.typed` marker | Add a `py.typed` file to `src/pyoas/` to declare the package as typed for downstream consumers |
 | Plugin/hook system | Pre/post render hooks for custom type mappings or generated file post-processing; premature now, worth tracking |
-| `services_pattern` test coverage | The `none \| repository \| domain` option is wired through to the skill template but has no dedicated test |

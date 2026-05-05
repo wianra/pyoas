@@ -51,12 +51,13 @@ class RouterGenerator:
 
     def generate(
         self, tag_filter: list[str] | None = None, clean: bool = False
-    ) -> None:
+    ) -> list[Path]:
         """
         Generate FastAPI routers for all tags (or a subset via ``tag_filter``).
 
         All files under the configured output directory are fully overwritten.
         If ``clean`` is True, the output directory is purged before generation.
+        Returns the list of files written.
         """
         cfg = self._config
         spec_hash = spec_hash_of_file(cfg.spec)
@@ -107,6 +108,7 @@ class RouterGenerator:
 
         output_root.mkdir(parents=True, exist_ok=True)
 
+        written: list[Path] = []
         for tag, operations in grouped.items():
             raw_operations = grouped_raw.get(tag, [])
             # Attach the raw (unresolved) operation so params can recover $ref names.
@@ -127,6 +129,7 @@ class RouterGenerator:
                 global_security=global_security,
                 spec_hash=spec_hash,
             )
+            written.append(output_root / f"{tag_to_dirname(tag)}.py")
 
         all_tags = list(grouped.keys())
         tag_entries = [{"name": t, "dirname": tag_to_dirname(t)} for t in all_tags]
@@ -134,7 +137,9 @@ class RouterGenerator:
             "init.py.jinja2",
             {"tags": tag_entries, "is_root": True, "spec_hash": spec_hash},
         )
-        (output_root / "__init__.py").write_text(root_init, encoding="utf-8")
+        init_path = output_root / "__init__.py"
+        init_path.write_text(root_init, encoding="utf-8")
+        written.append(init_path)
         ensure_intermediate_inits(
             output_root,
             cfg.output.source_root,
@@ -143,6 +148,8 @@ class RouterGenerator:
 
         if cfg.format.enabled:
             format_output(output_root)
+
+        return written
 
     def _write_tag(
         self,

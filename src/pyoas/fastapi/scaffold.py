@@ -19,6 +19,7 @@ from pyoas.core.config import Config
 from pyoas.core.parser import SpecParser
 from pyoas.core.renderer import Renderer
 from pyoas.core.resolver import resolve_refs
+from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     derive_import_path,
@@ -42,13 +43,14 @@ class ServiceScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def scaffold(self, tag_filter: list[str] | None = None) -> None:
+    def scaffold(self, tag_filter: list[str] | None = None) -> ScaffoldResult:
+        result = ScaffoldResult()
         cfg = self._config
         if not cfg.services.generate and not cfg.services.import_path:
             typer.echo(
                 "Service generation is not configured. Set services.generate: true in config."
             )
-            return
+            return result
 
         spec_raw = SpecParser(cfg.spec).load()
         spec = resolve_refs(spec_raw, cfg.spec)
@@ -88,7 +90,7 @@ class ServiceScaffolder:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
-            self._scaffold_tag(
+            tag_result = self._scaffold_tag(
                 tag,
                 merged,
                 renderer,
@@ -100,6 +102,9 @@ class ServiceScaffolder:
                 inline_schema_tag_map=inline_schema_tag_map,
                 global_security=global_security,
             )
+            result.wrote += tag_result.wrote
+            result.appended_items += tag_result.appended_items
+            result.appended_files.extend(tag_result.appended_files)
 
         # Write root __init__.py once (never overwrite — user may customise it)
         root_init = output_root / "__init__.py"
@@ -107,6 +112,7 @@ class ServiceScaffolder:
             root_init.write_text(
                 "# Scaffolded by pyoas — safe to edit.\n", encoding="utf-8"
             )
+        return result
 
     def _scaffold_tag(
         self,
@@ -120,9 +126,10 @@ class ServiceScaffolder:
         split_schema_names: set[str] | None = None,
         inline_schema_tag_map: dict[str, str] | None = None,
         global_security: list[Any] | None = None,
-    ) -> None:
+    ) -> ScaffoldResult:
         import re
 
+        tag_result = ScaffoldResult()
         tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
         service_file = output_root / f"{tag_dirname}.py"
 
@@ -141,8 +148,9 @@ class ServiceScaffolder:
         if not service_file.exists() or self._config.services.overwrite:
             src = renderer.render("service.py.jinja2", context)
             service_file.write_text(src, encoding="utf-8")
-            typer.echo(f"Wrote {service_file}")
-            return
+            typer.echo(typer.style(f"  wrote  {service_file}", fg=typer.colors.GREEN))
+            tag_result.wrote = 1
+            return tag_result
 
         # File exists and overwrite=False — add only missing methods.
         existing_src = service_file.read_text(encoding="utf-8")
@@ -181,7 +189,7 @@ class ServiceScaffolder:
             if op["function_name"] not in existing_methods
         ]
         if not new_ops:
-            return
+            return tag_result
 
         dep_import_path = context.get("dep_import_path")
         stubs = _render_method_stubs(new_ops, dep_import_path=dep_import_path)
@@ -209,7 +217,15 @@ class ServiceScaffolder:
             updated = existing_src.rstrip() + "\n\n" + stubs
 
         service_file.write_text(updated, encoding="utf-8")
-        typer.echo(f"Added {len(new_ops)} method(s) to {service_file}")
+        typer.echo(
+            typer.style(
+                f"  added  {len(new_ops)} method(s) to {service_file}",
+                fg=typer.colors.GREEN,
+            )
+        )
+        tag_result.appended_items = len(new_ops)
+        tag_result.appended_files = [tag_dirname]
+        return tag_result
 
 
 def _expected_sig_str(op: dict[str, Any], dep_import_path: str | None = None) -> str:

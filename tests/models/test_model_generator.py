@@ -504,21 +504,15 @@ components:
 """
 
 
-def test_unreferenced_schema_warning(tmp_path: Path) -> None:
-    """Schemas in components/schemas not referenced by any operation emit a UserWarning."""
-    import warnings
-
+def test_unreferenced_schema_warning(tmp_path: Path, capsys) -> None:
+    """Schemas in components/schemas not referenced by any operation emit a warning on stderr."""
     spec_path = tmp_path / "openapi.yaml"
     spec_path.write_text(_ORPHAN_SPEC)
     cfg = _make_config(str(spec_path), str(tmp_path / "out"))
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ModelGenerator(cfg).generate()
-    warning_messages = [
-        str(w.message) for w in caught if issubclass(w.category, UserWarning)
-    ]
-    assert any("Orphan" in m for m in warning_messages)
-    assert any("include_unreferenced" in m for m in warning_messages)
+    ModelGenerator(cfg).generate()
+    stderr = capsys.readouterr().err
+    assert "Orphan" in stderr
+    assert "include_unreferenced" in stderr
 
 
 def test_include_unreferenced_generates_in_shared(tmp_path: Path) -> None:

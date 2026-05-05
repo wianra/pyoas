@@ -14,6 +14,7 @@ from pyoas.core.config import Config
 from pyoas.core.parser import SpecParser
 from pyoas.core.renderer import Renderer
 from pyoas.core.resolver import resolve_refs
+from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     generate_function_name,
@@ -72,17 +73,18 @@ class ServiceTestScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def scaffold(self, tag_filter: list[str] | None = None) -> None:
+    def scaffold(self, tag_filter: list[str] | None = None) -> ScaffoldResult:
+        result = ScaffoldResult()
         cfg = self._config
         if not cfg.tests.generate:
-            return
+            return result
         if not cfg.services.import_path:
             typer.echo(
                 "Warning: service tests skipped — set services.import_path in pyoas.yaml "
                 "to enable service test generation.",
                 err=True,
             )
-            return
+            return result
 
         spec_raw = SpecParser(cfg.spec).load()
         spec = resolve_refs(spec_raw, cfg.spec)
@@ -104,7 +106,11 @@ class ServiceTestScaffolder:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
-            self._scaffold_tag(tag, merged, renderer, output_root, global_security)
+            tag_result = self._scaffold_tag(tag, merged, renderer, output_root, global_security)
+            result.wrote += tag_result.wrote
+            result.appended_items += tag_result.appended_items
+            result.appended_files.extend(tag_result.appended_files)
+        return result
 
     def _scaffold_tag(
         self,
@@ -113,7 +119,8 @@ class ServiceTestScaffolder:
         renderer: Renderer,
         output_root: Path,
         global_security: list[Any],
-    ) -> None:
+    ) -> ScaffoldResult:
+        tag_result = ScaffoldResult()
         tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
         test_file = output_root / f"test_{tag_dirname}_service.py"
         context = _build_service_test_context(
@@ -123,8 +130,9 @@ class ServiceTestScaffolder:
         if not test_file.exists() or self._config.tests.overwrite:
             src = renderer.render("test_service.py.jinja2", context)
             test_file.write_text(src, encoding="utf-8")
-            typer.echo(f"Wrote {test_file}")
-            return
+            typer.echo(typer.style(f"  wrote  {test_file}", fg=typer.colors.GREEN))
+            tag_result.wrote = 1
+            return tag_result
 
         existing_src = test_file.read_text(encoding="utf-8")
         existing_classes = set(
@@ -136,12 +144,20 @@ class ServiceTestScaffolder:
             if op["class_name"] not in existing_classes
         ]
         if not new_ops:
-            return
+            return tag_result
 
         stubs = _render_service_class_stubs(new_ops, context["service_class_name"])
         updated = existing_src.rstrip() + "\n\n" + stubs
         test_file.write_text(updated, encoding="utf-8")
-        typer.echo(f"Added {len(new_ops)} service test class(es) to {test_file}")
+        typer.echo(
+            typer.style(
+                f"  added  {len(new_ops)} service test class(es) to {test_file}",
+                fg=typer.colors.GREEN,
+            )
+        )
+        tag_result.appended_items = len(new_ops)
+        tag_result.appended_files = [tag_dirname]
+        return tag_result
 
 
 def _build_service_test_context(

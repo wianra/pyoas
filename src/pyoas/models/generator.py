@@ -5,9 +5,10 @@ ModelGenerator — orchestrates Pydantic v2 model generation from an OpenAPI spe
 from __future__ import annotations
 
 import shutil
-import warnings
 from pathlib import Path
 from typing import Any
+
+import typer
 
 from pyoas.core.analysis import (
     _GenericGroup,
@@ -40,15 +41,17 @@ _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 class ModelGenerator:
     def __init__(self, config: Config) -> None:
         self._config = config
+        self.unreferenced_count: int = 0
 
     def generate(
         self, tag_filter: list[str] | None = None, clean: bool = False
-    ) -> None:
+    ) -> list[Path]:
         """
         Generate Pydantic v2 models for all tags (or a subset via ``tag_filter``).
 
         All files under the configured output directory are fully overwritten.
         If ``clean`` is True, the output directory is purged before generation.
+        Returns the list of files written.
         """
         cfg = self._config
         spec_hash = spec_hash_of_file(cfg.spec)
@@ -112,6 +115,7 @@ class ModelGenerator:
                 "_group": group,
             }
 
+        written: list[Path] = []
         tag_model_names: dict[str, list[str]] = {}
         for tag in grouped:
             tag_schemas = _collect_tag_schemas(
@@ -133,6 +137,7 @@ class ModelGenerator:
                 generic_groups,
                 spec_hash=spec_hash,
             )
+            written.append(output_root / f"{tag_to_dirname(tag)}.py")
 
         shared_schemas = _collect_shared_schemas(
             spec, schema_tag_map, raw_components_schemas
@@ -147,13 +152,15 @@ class ModelGenerator:
             else schema_tag_map
         )
         unreferenced = sorted(set(raw_components_schemas) - set(_full_schema_tag_map))
+        self.unreferenced_count = len(unreferenced)
         for name in unreferenced:
-            warnings.warn(
-                f"Schema '{name}' in components/schemas is not referenced by any "
-                "operation and will not be generated. "
-                "Set model_config.include_unreferenced: true to include it.",
-                UserWarning,
-                stacklevel=2,
+            typer.echo(
+                typer.style(
+                    f"  warning  Schema '{name}' not referenced by any operation"
+                    " — skipped (set model_config.include_unreferenced: true to include it)",
+                    fg=typer.colors.YELLOW,
+                ),
+                err=True,
             )
         if cfg.model_config.include_unreferenced and unreferenced:
             resolved_components = spec.get("components", {}).get("schemas", {})
@@ -183,6 +190,7 @@ class ModelGenerator:
                 generic_groups,
                 spec_hash=spec_hash,
             )
+            written.append(output_root / "shared.py")
 
         has_shared = bool(shared_schemas or shared_base_entries)
         all_tags = list(grouped.keys()) + (["shared"] if has_shared else [])
@@ -197,7 +205,9 @@ class ModelGenerator:
             "init.py.jinja2",
             {"tags": tag_entries, "is_root_models": True, "spec_hash": spec_hash},
         )
-        (output_root / "__init__.py").write_text(root_init, encoding="utf-8")
+        init_path = output_root / "__init__.py"
+        init_path.write_text(root_init, encoding="utf-8")
+        written.append(init_path)
         ensure_intermediate_inits(
             output_root,
             cfg.output.source_root,
@@ -206,6 +216,8 @@ class ModelGenerator:
 
         if cfg.format.enabled:
             format_output(output_root)
+
+        return written
 
     def _write_tag(
         self,

@@ -99,7 +99,7 @@ def test_scaffold_skips_existing_when_overwrite_false(capsys) -> None:
         SkillScaffolder(cfg2).scaffold()
 
         assert skill_file.read_text(encoding="utf-8") == "# custom"
-        assert "Skipping" in capsys.readouterr().out
+        assert "skipped" in capsys.readouterr().out
 
 
 def test_scaffold_overwrites_when_overwrite_true() -> None:
@@ -236,7 +236,7 @@ def test_add_test_case_skips_existing_when_overwrite_false(capsys) -> None:
         SkillScaffolder(cfg2).scaffold()
 
         assert skill_file.read_text(encoding="utf-8") == "# custom"
-        assert "Skipping" in capsys.readouterr().out
+        assert "skipped" in capsys.readouterr().out
 
 
 def test_review_generated_skips_existing_when_overwrite_false(capsys) -> None:
@@ -250,7 +250,7 @@ def test_review_generated_skips_existing_when_overwrite_false(capsys) -> None:
         SkillScaffolder(cfg2).scaffold()
 
         assert skill_file.read_text(encoding="utf-8") == "# custom"
-        assert "Skipping" in capsys.readouterr().out
+        assert "skipped" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +299,7 @@ def test_implement_services_skips_existing_when_overwrite_false(capsys) -> None:
         SkillScaffolder(cfg2).scaffold()
 
         assert skill_file.read_text(encoding="utf-8") == "# custom"
-        assert "Skipping" in capsys.readouterr().out
+        assert "skipped" in capsys.readouterr().out
 
 
 def test_implement_services_overwrites_when_overwrite_true() -> None:

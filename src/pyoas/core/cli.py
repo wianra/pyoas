@@ -6,6 +6,8 @@ from typing import Annotated
 
 import typer
 
+from pyoas import __version__
+
 app = typer.Typer(
     name="pyoas",
     help="Generate Pydantic models and FastAPI routers from an OpenAPI spec.",
@@ -20,6 +22,25 @@ scaffold_app = typer.Typer(
     help="Scaffold user-owned files (skips existing files by default)."
 )
 app.add_typer(scaffold_app, name="scaffold")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"pyoas {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    version: bool | None = typer.Option(
+        None,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show version and exit.",
+    ),
+) -> None:
+    pass
 
 
 def _load_cfg(config: str):  # noqa: ANN201
@@ -110,9 +131,11 @@ def models(
         )
         raise typer.Exit(1)
 
-    ModelGenerator(_load_cfg(config)).generate(
+    written = ModelGenerator(_load_cfg(config)).generate(
         tag_filter=_tag_filter(tags), clean=clean
     )
+    for path in written:
+        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
 
 
 @app.command()
@@ -131,9 +154,39 @@ def fastapi(
         )
         raise typer.Exit(1)
 
-    RouterGenerator(_load_cfg(config)).generate(
+    written = RouterGenerator(_load_cfg(config)).generate(
         tag_filter=_tag_filter(tags), clean=clean
     )
+    for path in written:
+        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
+
+
+def _print_summary(rows: list[tuple[str, str, str]]) -> None:
+    """Print a clean aligned summary table."""
+    if not rows:
+        return
+    label_w = max(len(r[0]) for r in rows)
+    main_w = max(len(r[1]) for r in rows)
+    sep_len = 2 + label_w + 3 + main_w
+    details = [r[2] for r in rows if r[2]]
+    if details:
+        sep_len += 3 + max(len(d) for d in details)
+    sep = "─" * sep_len
+    typer.echo("")
+    typer.echo(sep)
+    for label, main, detail in rows:
+        try:
+            count = int(main.split()[0])
+            main_color: str | None = typer.colors.GREEN if count > 0 else None
+        except (ValueError, IndexError):
+            main_color = None
+        label_part = label.ljust(label_w)
+        main_part = typer.style(main.ljust(main_w), fg=main_color)
+        line = f"  {label_part}   " + main_part
+        if detail:
+            line += "   " + typer.style(detail, fg=typer.colors.YELLOW)
+        typer.echo(line)
+    typer.echo(sep)
 
 
 @app.command()
@@ -163,34 +216,71 @@ def generate(
 
     cfg = _load_cfg(config)
     tag_filter = _tag_filter(tags)
-    ModelGenerator(cfg).generate(tag_filter=tag_filter, clean=clean)  # type: ignore[possibly-undefined]
-    RouterGenerator(cfg).generate(tag_filter=tag_filter, clean=clean)  # type: ignore[possibly-undefined]
+
+    model_gen = ModelGenerator(cfg)  # type: ignore[possibly-undefined]
+    model_written = model_gen.generate(tag_filter=tag_filter, clean=clean)
+    router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
+    router_written = router_gen.generate(tag_filter=tag_filter, clean=clean)
+    for path in model_written + router_written:
+        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
+
+    summary: list[tuple[str, str, str]] = []
+    warn_count = model_gen.unreferenced_count
+    summary.append((
+        "models",
+        f"{len(model_written)} wrote",
+        f"{warn_count} warning(s)" if warn_count else "",
+    ))
+    summary.append(("routers", f"{len(router_written)} wrote", ""))
 
     if cfg.dependencies.generate:
         from pyoas.fastapi import DependencyScaffolder
 
-        DependencyScaffolder(cfg).scaffold()
+        dep_result = DependencyScaffolder(cfg).scaffold()
+        detail = f"{dep_result.skipped} skipped" if dep_result.skipped else ""
+        summary.append(("dependencies", f"{dep_result.wrote} wrote", detail))
 
     if cfg.services.generate:
         from pyoas.fastapi import ServiceScaffolder
 
-        ServiceScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        svc_result = ServiceScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        detail = ""
+        if svc_result.appended_items:
+            files_str = ", ".join(svc_result.appended_files)
+            detail = f"{svc_result.appended_items} added to {len(svc_result.appended_files)} file(s) ({files_str})"
+        summary.append(("services", f"{svc_result.wrote} wrote", detail))
 
     if cfg.tests.generate:
         from pyoas.fastapi import ServiceTestScaffolder, TestScaffolder
 
-        TestScaffolder(cfg).scaffold(tag_filter=tag_filter)
-        ServiceTestScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        test_result = TestScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        svc_test_result = ServiceTestScaffolder(cfg).scaffold(tag_filter=tag_filter)
+
+        detail = ""
+        if test_result.appended_items:
+            files_str = ", ".join(test_result.appended_files)
+            detail = f"{test_result.appended_items} added to {len(test_result.appended_files)} file(s) ({files_str})"
+        summary.append(("tests", f"{test_result.wrote} wrote", detail))
+
+        detail = ""
+        if svc_test_result.appended_items:
+            files_str = ", ".join(svc_test_result.appended_files)
+            detail = f"{svc_test_result.appended_items} added to {len(svc_test_result.appended_files)} file(s) ({files_str})"
+        summary.append(("service tests", f"{svc_test_result.wrote} wrote", detail))
 
     if cfg.skills.generate:
         try:
             from pyoas.claude import SkillScaffolder
 
-            SkillScaffolder(cfg).scaffold()
+            skill_result = SkillScaffolder(cfg).scaffold()
+            detail = f"{skill_result.skipped} skipped" if skill_result.skipped else ""
+            summary.append(("skills", f"{skill_result.wrote} wrote", detail))
         except ImportError:
             typer.echo(
                 'Run: pip install "pyoas[claude]" to generate Claude skills.', err=True
             )
+
+    _print_summary(summary)
 
 
 @app.command()

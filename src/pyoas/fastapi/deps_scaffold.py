@@ -12,6 +12,7 @@ import typer
 from pyoas.core.config import Config
 from pyoas.core.parser import SpecParser
 from pyoas.core.renderer import Renderer
+from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
@@ -78,7 +79,8 @@ class DependencyScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def scaffold(self) -> None:
+    def scaffold(self) -> ScaffoldResult:
+        result = ScaffoldResult()
         cfg = self._config
         if not cfg.dependencies.generate and not cfg.dependencies.import_path:
             typer.echo(
@@ -86,7 +88,7 @@ class DependencyScaffolder:
                 "Set dependencies.generate: true in config.",
                 err=True,
             )
-            return
+            return result
 
         spec_raw = SpecParser(cfg.spec).load()
 
@@ -95,7 +97,7 @@ class DependencyScaffolder:
                 "No secured operations found in the spec — skipping dependency scaffolding.",
                 err=True,
             )
-            return
+            return result
 
         scheme_type, oauth2_token_url = _detect_security_scheme(spec_raw)
 
@@ -110,14 +112,20 @@ class DependencyScaffolder:
                 {"scheme_type": scheme_type, "oauth2_token_url": oauth2_token_url},
             )
             auth_file.write_text(src, encoding="utf-8")
-            typer.echo(f"Wrote {auth_file}")
+            typer.echo(typer.style(f"  wrote  {auth_file}", fg=typer.colors.GREEN))
+            result.wrote += 1
         else:
             typer.echo(
-                f"Skipped {auth_file} (already exists; set overwrite: true to replace)"
+                typer.style(
+                    f"  skipped  {auth_file} — already exists",
+                    fg=typer.colors.YELLOW,
+                )
             )
+            result.skipped += 1
 
         init_file = output_root / "__init__.py"
         if not init_file.exists():
             init_file.write_text(
                 "# Scaffolded by pyoas — safe to edit.\n", encoding="utf-8"
             )
+        return result

@@ -38,6 +38,7 @@ dev = [
     "types-pyyaml>=6.0.12.20260408",
     "httpx>=0.27",
     "mkdocs-material>=9.7.6",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.ruff]
@@ -59,5 +60,11 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--import-mode=importlib"
+addopts = "--import-mode=importlib --cov=src/pyoas --cov-report=term-missing"
 filterwarnings = ["ignore::pytest.PytestCollectionWarning"]
+
+[tool.coverage.run]
+source = ["src/pyoas"]
+
+[tool.coverage.report]
+show_missing = true

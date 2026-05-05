@@ -15,6 +15,7 @@ from pyoas.core.config import Config
 from pyoas.core.parser import SpecParser
 from pyoas.core.renderer import Renderer
 from pyoas.core.resolver import resolve_refs
+from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     derive_import_path,
@@ -332,13 +333,14 @@ class TestScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def scaffold(self, tag_filter: list[str] | None = None) -> None:
+    def scaffold(self, tag_filter: list[str] | None = None) -> ScaffoldResult:
+        result = ScaffoldResult()
         cfg = self._config
         if not cfg.tests.generate:
             typer.echo(
                 "Test generation is not configured. Set tests.generate: true in config."
             )
-            return
+            return result
 
         spec_raw = SpecParser(cfg.spec).load()
         spec = resolve_refs(spec_raw, cfg.spec)
@@ -371,9 +373,12 @@ class TestScaffolder:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
-            context = self._scaffold_tag(
+            context, tag_result = self._scaffold_tag(
                 tag, merged, renderer, output_root, generic_name_map, global_security
             )
+            result.wrote += tag_result.wrote
+            result.appended_items += tag_result.appended_items
+            result.appended_files.extend(tag_result.appended_files)
             response_models: list[dict[str, Any]] = context["response_models"]
             if response_models:
                 all_tag_models.append(
@@ -422,13 +427,15 @@ class TestScaffolder:
         models_import_path = cfg.output.models_import or derive_import_path(
             cfg.output.models, cfg.output.source_root
         )
-        self._scaffold_conftest(
+        conftest_result = self._scaffold_conftest(
             conftest_factories,
             conftest_import_groups,
             renderer,
             output_root,
             models_import_path,
         )
+        result.wrote += conftest_result.wrote
+        return result
 
     def _scaffold_tag(
         self,
@@ -438,7 +445,8 @@ class TestScaffolder:
         output_root: Path,
         generic_name_map: dict[str, str] | None = None,
         global_security: list[Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], ScaffoldResult]:
+        tag_result = ScaffoldResult()
         tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
         test_file = output_root / f"test_{tag_dirname}.py"
 
@@ -449,8 +457,9 @@ class TestScaffolder:
         if not test_file.exists() or self._config.tests.overwrite:
             src = renderer.render("test.py.jinja2", context)
             test_file.write_text(src, encoding="utf-8")
-            typer.echo(f"Wrote {test_file}")
-            return context
+            typer.echo(typer.style(f"  wrote  {test_file}", fg=typer.colors.GREEN))
+            tag_result.wrote = 1
+            return context, tag_result
 
         # File exists and overwrite=False — append only missing test classes.
         existing_src = test_file.read_text(encoding="utf-8")
@@ -463,13 +472,20 @@ class TestScaffolder:
             if op["class_name"] not in existing_classes
         ]
         if not new_ops:
-            return context
+            return context, tag_result
 
         stubs = _render_class_stubs(new_ops, has_services=context["has_services"])
         updated = existing_src.rstrip() + "\n\n" + stubs
         test_file.write_text(updated, encoding="utf-8")
-        typer.echo(f"Added {len(new_ops)} test class(es) to {test_file}")
-        return context
+        typer.echo(
+            typer.style(
+                f"  added  {len(new_ops)} test class(es) to {test_file}",
+                fg=typer.colors.GREEN,
+            )
+        )
+        tag_result.appended_items = len(new_ops)
+        tag_result.appended_files = [tag_dirname]
+        return context, tag_result
 
     def _scaffold_conftest(
         self,
@@ -478,10 +494,11 @@ class TestScaffolder:
         renderer: Renderer,
         output_root: Path,
         models_import_path: str,
-    ) -> None:
+    ) -> ScaffoldResult:
         """Write or append conftest.py with model factory stubs."""
+        conftest_result = ScaffoldResult()
         if not factories:
-            return
+            return conftest_result
 
         conftest_file = output_root / "conftest.py"
         context = {
@@ -493,8 +510,9 @@ class TestScaffolder:
         if not conftest_file.exists() or self._config.tests.overwrite:
             src = renderer.render("conftest.py.jinja2", context)
             conftest_file.write_text(src, encoding="utf-8")
-            typer.echo(f"Wrote {conftest_file}")
-            return
+            typer.echo(typer.style(f"  wrote  {conftest_file}", fg=typer.colors.GREEN))
+            conftest_result.wrote = 1
+            return conftest_result
 
         # Append-only: add only factory functions not already present.
         existing_src = conftest_file.read_text(encoding="utf-8")
@@ -536,12 +554,19 @@ class TestScaffolder:
                 )
 
         if not new_lines:
-            return
+            return conftest_result
 
         updated = existing_src.rstrip() + "\n" + "\n".join(new_lines) + "\n"
         conftest_file.write_text(updated, encoding="utf-8")
         count = sum(1 for line in new_lines if line.startswith("def "))
-        typer.echo(f"Added {count} factory stub(s) to {conftest_file}")
+        typer.echo(
+            typer.style(
+                f"  added  {count} factory stub(s) to {conftest_file}",
+                fg=typer.colors.GREEN,
+            )
+        )
+        conftest_result.appended_items = count
+        return conftest_result
 
 
 class TestOperation(TypedDict):
