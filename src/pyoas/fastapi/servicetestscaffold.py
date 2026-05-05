@@ -106,7 +106,9 @@ class ServiceTestScaffolder:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
-            tag_result = self._scaffold_tag(tag, merged, renderer, output_root, global_security)
+            tag_result = self._scaffold_tag(
+                tag, merged, renderer, output_root, global_security
+            )
             result.wrote += tag_result.wrote
             result.appended_items += tag_result.appended_items
             result.appended_files.extend(tag_result.appended_files)

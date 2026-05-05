@@ -226,11 +226,13 @@ def generate(
 
     summary: list[tuple[str, str, str]] = []
     warn_count = model_gen.unreferenced_count
-    summary.append((
-        "models",
-        f"{len(model_written)} wrote",
-        f"{warn_count} warning(s)" if warn_count else "",
-    ))
+    summary.append(
+        (
+            "models",
+            f"{len(model_written)} wrote",
+            f"{warn_count} warning(s)" if warn_count else "",
+        )
+    )
     summary.append(("routers", f"{len(router_written)} wrote", ""))
 
     if cfg.dependencies.generate:

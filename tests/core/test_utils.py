@@ -70,7 +70,9 @@ def test_ensure_intermediate_inits_src_layout_creates_inits(tmp_path: Path) -> N
     assert not (tmp_path / "src" / "__init__.py").exists()
 
 
-def test_ensure_intermediate_inits_flat_layout_with_project_root(tmp_path: Path) -> None:
+def test_ensure_intermediate_inits_flat_layout_with_project_root(
+    tmp_path: Path,
+) -> None:
     """Flat-layout mode (source_root='') stamps dirs up to project_root."""
     services = tmp_path / "app" / "services"
     services.mkdir(parents=True)
@@ -80,7 +82,9 @@ def test_ensure_intermediate_inits_flat_layout_with_project_root(tmp_path: Path)
     assert (tmp_path / "app" / "__init__.py").exists()
 
 
-def test_ensure_intermediate_inits_flat_layout_no_project_root_is_noop(tmp_path: Path) -> None:
+def test_ensure_intermediate_inits_flat_layout_no_project_root_is_noop(
+    tmp_path: Path,
+) -> None:
     """Flat-layout with project_root=None returns early without creating any files."""
     services = tmp_path / "app" / "services"
     services.mkdir(parents=True)

@@ -57,7 +57,11 @@ class SkillScaffolder:
     ) -> bool:
         skill_file = output_dir / "implement-tests.md"
         if skill_file.exists() and not self._config.skills.overwrite:
-            typer.echo(typer.style(f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW))
+            typer.echo(
+                typer.style(
+                    f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW
+                )
+            )
             return False
         src = renderer.render("implement_tests.md.jinja2", context)
         skill_file.write_text(src, encoding="utf-8")
@@ -69,7 +73,11 @@ class SkillScaffolder:
     ) -> bool:
         skill_file = output_dir / "add-test-case.md"
         if skill_file.exists() and not self._config.skills.overwrite:
-            typer.echo(typer.style(f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW))
+            typer.echo(
+                typer.style(
+                    f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW
+                )
+            )
             return False
         src = renderer.render("add_test_case.md.jinja2", context)
         skill_file.write_text(src, encoding="utf-8")
@@ -81,7 +89,11 @@ class SkillScaffolder:
     ) -> bool:
         skill_file = output_dir / "review-generated.md"
         if skill_file.exists() and not self._config.skills.overwrite:
-            typer.echo(typer.style(f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW))
+            typer.echo(
+                typer.style(
+                    f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW
+                )
+            )
             return False
         src = renderer.render("review_generated.md.jinja2", context)
         skill_file.write_text(src, encoding="utf-8")
@@ -95,7 +107,11 @@ class SkillScaffolder:
             return False
         skill_file = output_dir / "implement-services.md"
         if skill_file.exists() and not self._config.skills.overwrite:
-            typer.echo(typer.style(f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW))
+            typer.echo(
+                typer.style(
+                    f"  skipped  {skill_file} — already exists", fg=typer.colors.YELLOW
+                )
+            )
             return False
         src = renderer.render("implement_services.md.jinja2", context)
         skill_file.write_text(src, encoding="utf-8")

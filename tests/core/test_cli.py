@@ -358,9 +358,7 @@ def test_scaffold_dependencies_warns_when_no_security(tmp_path: Path) -> None:
 def test_scaffold_dependencies_missing_extra_exits_one(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
     with mock.patch.dict(sys.modules, {"pyoas.fastapi": None}):
-        result = runner.invoke(
-            app, ["scaffold", "dependencies", "--config", str(cfg)]
-        )
+        result = runner.invoke(app, ["scaffold", "dependencies", "--config", str(cfg)])
     assert result.exit_code == 1
     assert "pyoas[fastapi]" in result.output
 
