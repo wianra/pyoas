@@ -1,6 +1,6 @@
 # pyoas Development Roadmap
 
-_Updated: 2026-05-04_
+_Updated: 2026-05-05_
 
 ## Project State
 
@@ -19,14 +19,7 @@ Architecture complete, production-quality implementation. 220 tests, all green (
 | Warning noise (`warnings.warn`) | Replaced with `typer.echo(..., err=True)` — no more Python stacktrace pointers |
 | Colored output inconsistency | All scaffolders and generators now use `  wrote  {path}` (green) / `  skipped  {path}` (yellow) uniformly |
 | `generate` summary table | `ScaffoldResult` dataclass aggregates counts across all scaffolders; `_print_summary()` prints an aligned two-column table at the end of `pyoas generate` |
-
----
-
-## Known Issues
-
-### Deprecated model fields not propagated
-
-`deprecated: true` on schema *properties* is ignored. Operations get `deprecated=True` in the router decorator, but Pydantic model fields don't get `Field(deprecated=True)` (Pydantic 2.9+). Inconsistent — half the spec's deprecation signal is dropped.
+| `deprecated` model field propagation | Schema properties marked `deprecated: true` now emit `Field(deprecated=True)` on Pydantic model fields; requires Pydantic ≥ 2.9 |
 
 ---
 
@@ -40,29 +33,15 @@ Ordered by impact and natural sequencing.
 
 ---
 
-### 2. Complete CLI integration test suite
+### 2. ~~Complete CLI integration test suite~~ ✓ Done
 
-**Effort:** Medium | **Value:** High — most commands have no CLI-layer coverage
-
-`diff` has CliRunner tests. `init`, `validate`, `generate`, and `scaffold` subcommands do not. Add a `tests/core/test_cli.py` module:
-
-```python
-from typer.testing import CliRunner
-from pyoas.core.cli import app
-
-result = runner.invoke(app, ["validate", "--config", str(cfg_path)])
-assert result.exit_code == 0
-```
-
-Scenarios: wrong config path, invalid spec, `--tags` filtering, exit codes, scaffold subcommands (`services`, `tests`, `dependencies`, `skills`), missing extras (ImportError path).
+`tests/core/test_cli.py` covers all commands and subcommands: `init`, `validate`, `models`, `fastapi`, `generate`, `diff`, and all `scaffold` subcommands (`services`, `tests`, `dependencies`, `skills`). Scenarios include `--tags` filtering, exit codes, missing extras (ImportError path), `diff` detecting new/modified/removed/missing files and service method drift. Coverage also improved across `core/tags`, `core/utils`, `fastapi/servicetestscaffold`, and `fastapi/deps_scaffold`. Overall line coverage: 84% → 89%.
 
 ---
 
-### 3. Deprecated model field propagation
+### 3. ~~Deprecated model field propagation~~ ✓ Done
 
-**Effort:** Small | **Value:** Correctness / consistency with router behavior
-
-Emit `Field(deprecated=True)` for schema properties marked `deprecated: true`. Requires Pydantic ≥ 2.9 (already in the dependency range). The model template's `Field(...)` construction needs a `deprecated` flag in the context dict from `context.py`.
+Schema properties marked `deprecated: true` now emit `Field(deprecated=True)` consistent with router operation handling. Pydantic lower bound bumped to ≥ 2.9.
 
 ---
 

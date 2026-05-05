@@ -234,7 +234,7 @@ def _build_field_kwargs(
     a Pydantic v2 ``Field(...)`` call, excluding constraint kwargs (those go
     inside ``Annotated``).
 
-    Order: default → alias → description → title → examples.
+    Order: default → alias → description → title → examples → deprecated.
     ``alias`` is only emitted when the Python identifier differs from the
     original JSON property name (i.e. after snake_case conversion).
     """
@@ -264,6 +264,9 @@ def _build_field_kwargs(
         examples = [prop_schema["example"]]
     if examples:
         kwargs.append(("examples", repr(examples)))
+
+    if prop_schema.get("deprecated"):
+        kwargs.append(("deprecated", "True"))
 
     return kwargs
 

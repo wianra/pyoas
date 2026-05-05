@@ -556,3 +556,23 @@ def test_generate_enum_as_literal(
         assert 'PetStatus = Literal["available"' in src
         assert "StrEnum" not in src
         assert src == snapshot(name="pets_models_literal_enum")
+
+
+def test_generate_deprecated_fields(
+    deprecated_fields: Path, snapshot: SnapshotAssertion
+) -> None:
+    """Schema properties marked deprecated:true emit Field(deprecated=True)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(deprecated_fields), tmp)
+        ModelGenerator(cfg).generate()
+
+        src = (Path(tmp) / "items.py").read_text()
+        # Deprecated fields carry the kwarg.
+        assert "deprecated=True" in src
+        # Non-deprecated fields must NOT carry it.
+        lines = {line.strip() for line in src.splitlines()}
+        assert not any("id:" in line and "deprecated" in line for line in lines)
+        assert not any(
+            line.startswith("name:") and "deprecated" in line for line in lines
+        )
+        assert src == snapshot(name="items_models_deprecated_fields")

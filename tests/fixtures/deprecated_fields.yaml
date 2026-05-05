@@ -1,0 +1,46 @@
+openapi: "3.0.3"
+info:
+  title: Deprecated Fields Test
+  version: "1.0.0"
+tags:
+  - name: items
+    description: Item operations
+
+paths:
+  /items:
+    get:
+      summary: List items
+      operationId: listItems
+      tags: [items]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+components:
+  schemas:
+    Item:
+      type: object
+      required:
+        - id
+        - legacy_name
+      properties:
+        id:
+          type: integer
+          description: Unique identifier
+        legacy_name:
+          type: string
+          deprecated: true
+          description: Use 'name' instead
+        name:
+          type: string
+        old_price:
+          type: number
+          deprecated: true
+        score:
+          type: number
+          deprecated: true
+          default: 0.0

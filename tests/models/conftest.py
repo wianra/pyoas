@@ -58,3 +58,8 @@ def inline_schemas(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def component_enums(fixtures_dir: Path) -> Path:
     return fixtures_dir / "component_enums.yaml"
+
+
+@pytest.fixture
+def deprecated_fields(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "deprecated_fields.yaml"
