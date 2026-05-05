@@ -1,0 +1,61 @@
+openapi: "3.0.0"
+info:
+  title: Doctor Issues Test Spec
+  version: "1.0.0"
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items
+      responses:
+        "200":
+          description: success
+    post:
+      # No operationId — should trigger missing_operation_id warning
+      tags: [items]
+      summary: Create item
+      responses:
+        "201":
+          description: created
+  /users:
+    get:
+      # Duplicate operationId — same as listItems above
+      operationId: listItems
+      tags: [users]
+      summary: List users
+      responses:
+        "200":
+          description: success
+  /products:
+    get:
+      # Tag "my-tag" normalizes to same dirname as "my_tag" → collision
+      operationId: listProducts
+      tags: ["my-tag"]
+      responses:
+        "200":
+          description: success
+  /widgets:
+    get:
+      operationId: listWidgets
+      tags: ["my_tag"]
+      responses:
+        "200":
+          description: success
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    AmbiguousSchema:
+      # No type, no $ref, no allOf/anyOf/oneOf, no enum — triggers ambiguous_schema warning
+      description: This schema has no type declaration
+    BrokenRef:
+      type: object
+      properties:
+        item:
+          $ref: "#/components/schemas/NonExistentSchema"

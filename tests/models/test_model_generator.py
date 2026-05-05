@@ -666,3 +666,169 @@ def test_generate_webhooks_produces_models(
         assert "class Subscription" in src
         assert "class SubscriptionEvent" in src
         assert src == snapshot(name="subscriptions_models_webhooks")
+
+
+# ---------------------------------------------------------------------------
+# allOf inheritance
+# ---------------------------------------------------------------------------
+
+
+def _make_allof_schema_entry(
+    name: str,
+    raw_allof: list,
+    resolved_allof: list,
+) -> dict:
+    """Build a schema entry for _render_schema testing allOf patterns."""
+    return {
+        "name": name,
+        "schema": {"allOf": resolved_allof},
+        "raw_schema": {"allOf": raw_allof},
+    }
+
+
+def test_allof_single_ref_nested_generates_inheritance() -> None:
+    """Dog(Animal) via nested allOf generates class Dog(Animal): breed: ... (not name)."""
+    from pyoas.models.schema_renderer import _render_schema
+
+    raw_allof = [
+        {"$ref": "#/components/schemas/Animal"},
+        {"type": "object", "properties": {"breed": {"type": "string"}}},
+    ]
+    resolved_allof = [
+        {
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}},
+        },
+        {"type": "object", "properties": {"breed": {"type": "string"}}},
+    ]
+    entry = _make_allof_schema_entry("Dog", raw_allof, resolved_allof)
+    cfg = Config(spec="dummy.yaml")
+
+    rendered = _render_schema(entry, cfg)
+
+    assert len(rendered) == 1
+    rs = rendered[0]
+    assert rs["name"] == "Dog"
+    assert rs["bases"] == ["Animal"]
+    field_names = [f["name"] for f in rs.get("fields", [])]
+    assert "breed" in field_names
+    assert "name" not in field_names  # inherited — must not be redeclared
+
+
+def test_allof_flat_pattern_regression() -> None:
+    """DogFlat (properties at top level) still works correctly after the fix."""
+    from pyoas.models.schema_renderer import _render_schema
+
+    # DogFlat: type: object, allOf: [{$ref: Animal}], properties: {coat: ...}
+    entry = {
+        "name": "DogFlat",
+        "schema": {
+            "type": "object",
+            "allOf": [
+                {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {"name": {"type": "string"}},
+                }
+            ],
+            "properties": {"coat": {"type": "string"}},
+        },
+        "raw_schema": {
+            "type": "object",
+            "allOf": [{"$ref": "#/components/schemas/Animal"}],
+            "properties": {"coat": {"type": "string"}},
+        },
+    }
+    cfg = Config(spec="dummy.yaml")
+
+    rendered = _render_schema(entry, cfg)
+
+    assert len(rendered) == 1
+    rs = rendered[0]
+    assert rs["bases"] == ["Animal"]
+    field_names = [f["name"] for f in rs.get("fields", [])]
+    assert "coat" in field_names
+    assert "name" not in field_names  # only child-own properties at top level
+
+
+def test_allof_child_no_own_fields_generates_pass_guard() -> None:
+    """DogNoExtras (allOf with only a $ref, no extra properties) generates empty fields list."""
+    from pyoas.models.schema_renderer import _render_schema
+
+    raw_allof = [{"$ref": "#/components/schemas/Animal"}]
+    resolved_allof = [
+        {
+            "type": "object",
+            "required": ["name"],
+            "properties": {"name": {"type": "string"}},
+        }
+    ]
+    entry = _make_allof_schema_entry("DogNoExtras", raw_allof, resolved_allof)
+    cfg = Config(spec="dummy.yaml")
+
+    rendered = _render_schema(entry, cfg)
+
+    assert len(rendered) == 1
+    rs = rendered[0]
+    assert rs["bases"] == ["Animal"]
+    assert rs.get("fields", []) == []  # template will render 'pass'
+
+
+def test_allof_multi_ref_keeps_existing_behavior() -> None:
+    """Multi-$ref allOf (two $refs) still uses bases for both (existing behavior)."""
+    from pyoas.models.schema_renderer import _render_schema
+
+    raw_allof = [
+        {"$ref": "#/components/schemas/Animal"},
+        {"$ref": "#/components/schemas/Dog"},
+    ]
+    resolved_allof = [
+        {"type": "object", "properties": {"name": {"type": "string"}}},
+        {"type": "object", "properties": {"breed": {"type": "string"}}},
+    ]
+    entry = _make_allof_schema_entry("MultiParent", raw_allof, resolved_allof)
+    cfg = Config(spec="dummy.yaml")
+
+    rendered = _render_schema(entry, cfg)
+
+    assert len(rendered) == 1
+    rs = rendered[0]
+    # Multi-$ref: bases has both; fields are from top-level properties (empty here)
+    assert "Animal" in rs["bases"]
+    assert "Dog" in rs["bases"]
+
+
+def test_allof_inheritance_full_generation(
+    allof_inheritance: Path, snapshot: SnapshotAssertion
+) -> None:
+    """Full generation snapshot for allOf inheritance fixture."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(allof_inheritance), tmp)
+        ModelGenerator(cfg).generate()
+
+        animals_src = (Path(tmp) / "animals.py").read_text()
+        shared_src = (Path(tmp) / "shared.py").read_text()
+
+        # Dog should inherit from Animal, not redeclare 'name'
+        assert "class Dog(Animal)" in animals_src
+        assert "breed" in animals_src
+        assert "from .shared import Animal" in animals_src
+
+        # Animal lives in shared (referenced by both tags)
+        assert "class Animal" in shared_src
+
+        assert animals_src == snapshot(name="allof_animals_models")
+        assert shared_src == snapshot(name="allof_shared_models")
+
+
+def test_allof_child_with_shared_base_generates_import(
+    allof_inheritance: Path,
+) -> None:
+    """Dog(Animal) where Animal is in shared.py gets 'from .shared import Animal'."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(allof_inheritance), tmp)
+        ModelGenerator(cfg).generate()
+
+        animals_src = (Path(tmp) / "animals.py").read_text()
+        assert "from .shared import Animal" in animals_src

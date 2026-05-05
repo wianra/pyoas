@@ -49,3 +49,38 @@ paths:
       responses:
         "200":
           description: Form submitted
+  /upload-opaque:
+    post:
+      operationId: uploadOpaque
+      tags: [files]
+      summary: Upload with opaque form body (no properties listed)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              # Intentionally no properties — opaque form body
+      responses:
+        "200":
+          description: Uploaded
+  /upload-ref:
+    post:
+      operationId: uploadRef
+      tags: [files]
+      summary: Upload with a $ref form schema that has no properties
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/OpaqueUpload"
+      responses:
+        "200":
+          description: Uploaded
+components:
+  schemas:
+    OpaqueUpload:
+      type: object
+      # No properties — resolved schema will also lack properties
+      description: An opaque upload body

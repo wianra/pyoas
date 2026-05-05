@@ -399,6 +399,98 @@ def validate(
         raise typer.Exit(1)
 
 
+@app.command()
+def doctor(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+) -> None:
+    """Run pre-flight diagnostic checks on the spec and config."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    import yaml as _yaml
+
+    from pyoas.core.doctor import run_doctor_checks
+
+    cfg = _load_cfg(config)
+    # Load raw spec without openapi-spec-validator so doctor can check specs that
+    # have semantic errors (e.g. duplicate operationIds) and report them nicely.
+    try:
+        p = _Path(cfg.spec)
+        text = p.read_text(encoding="utf-8")
+        spec_raw = (
+            _json.loads(text) if p.suffix.lower() == ".json" else _yaml.safe_load(text)
+        )
+    except (FileNotFoundError, OSError) as exc:
+        typer.echo(f"Error loading spec: {exc}", err=True)
+        raise typer.Exit(1)
+
+    issues = run_doctor_checks(spec_raw, cfg)
+
+    errors = [i for i in issues if i.level == "error"]
+    warnings = [i for i in issues if i.level == "warning"]
+
+    for issue in issues:
+        tag = f"[{issue.level.upper()}]"
+        color = typer.colors.RED if issue.level == "error" else typer.colors.YELLOW
+        styled_tag = typer.style(f"  {tag:<10}", fg=color)
+        typer.echo(f"{styled_tag} {issue.check:<30} {issue.location} — {issue.message}")
+
+    if issues:
+        typer.echo(f"\n  {len(errors)} error(s), {len(warnings)} warning(s)")
+    else:
+        typer.echo("  No issues found.")
+
+    if errors:
+        raise typer.Exit(1)
+
+
+@app.command()
+def drift(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    tags: Annotated[str | None, _TAGS_OPTION] = None,
+) -> None:
+    """Report service method drift without writing anything. Exits 1 if drift is found."""
+    try:
+        from pyoas.fastapi.scaffold import detect_service_drift
+    except ImportError:
+        typer.echo(
+            'Error: pyoas[fastapi] extra is required. Run: pip install "pyoas[fastapi]"',
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    cfg = _load_cfg(config)
+    tag_filter = _tag_filter(tags)
+
+    if not cfg.services.generate and not cfg.services.import_path:
+        typer.echo(
+            "Service generation is not configured. Set services.generate: true in config."
+        )
+        return
+
+    items = detect_service_drift(cfg, tag_filter=tag_filter)
+
+    for item in items:
+        if item.kind == "missing_file":
+            typer.echo(f"  [missing file]   {item.file}")
+        elif item.kind == "missing_method":
+            typer.echo(f"  [missing method] {item.file}::{item.method}")
+        elif item.kind == "orphaned_method":
+            typer.echo(f"  [orphaned]       {item.file}::{item.method}")
+        elif item.kind == "signature_changed":
+            typer.echo(f"  [sig changed]    {item.file}::{item.method}")
+            for line in item.detail.split("\n")[1:]:
+                typer.echo(f"    {line.strip()}")
+
+    if items:
+        typer.echo(
+            f"\n  {len(items)} drift item(s) found. Run pyoas scaffold services to fix."
+        )
+        raise typer.Exit(1)
+    else:
+        typer.echo("No drift detected.")
+
+
 @scaffold_app.command("dependencies")
 def scaffold_dependencies(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
@@ -545,66 +637,15 @@ def watch(
 
 def _scaffold_service_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noqa: ANN001
     """Return service file paths / method refs that would be created or appended."""
-    import re
+    from pyoas.fastapi.scaffold import detect_service_drift
 
-    from pyoas.core.analysis import (
-        build_schema_tag_map,
-        detect_generic_groups_global,
-    )
-    from pyoas.core.parser import SpecParser
-    from pyoas.core.resolver import resolve_refs
-    from pyoas.core.tags import extract_tags
-    from pyoas.fastapi.scaffold import _build_service_context
-
-    spec_raw = SpecParser(cfg.spec).load()
-    spec = resolve_refs(spec_raw, cfg.spec)
-    grouped = extract_tags(spec, default_tag=cfg.default_tag)
-    grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
-    if tag_filter:
-        grouped = {k: v for k, v in grouped.items() if k in tag_filter}
-        grouped_raw = {k: v for k, v in grouped_raw.items() if k in tag_filter}
-
-    raw_cs = spec_raw.get("components", {}).get("schemas", {})
-    full_grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
-    schema_tag_map = build_schema_tag_map(spec_raw, full_grouped_raw)
-    generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
-    generic_name_map = {
-        inst["schema_name"]: f"{g.generic_name}[{inst['type_param']}]"
-        for g in generic_groups.values()
-        for inst in g.instances
-    }
-
+    items = detect_service_drift(cfg, tag_filter=tag_filter)
     result: list[str] = []
-    svc_root = Path(cfg.services.output)
-    for tag, operations in grouped.items():
-        raw_ops = grouped_raw.get(tag, [])
-        merged = [
-            {**op, "raw_operation": raw_op["operation"]}
-            for op, raw_op in zip(operations, raw_ops)
-        ]
-        context = _build_service_context(
-            tag,
-            merged,
-            cfg,
-            generic_name_map,
-            schema_tag_map=schema_tag_map,
-            generic_groups=generic_groups,
-        )
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
-        svc_file = svc_root / f"{tag_dirname}.py"
-        expected = {op["function_name"] for op in context["operations"]}
-        if not svc_file.exists():
-            result.append(str(svc_file))
-        else:
-            existing = set(
-                re.findall(
-                    r"^\s{4}async def (\w+)\(",
-                    svc_file.read_text(encoding="utf-8"),
-                    re.MULTILINE,
-                )
-            )
-            for fn in sorted(expected - existing):
-                result.append(f"{svc_file}::{fn}")
+    for item in items:
+        if item.kind == "missing_file":
+            result.append(item.file)
+        elif item.kind == "missing_method":
+            result.append(f"{item.file}::{item.method}")
     return result
 
 

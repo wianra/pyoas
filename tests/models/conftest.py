@@ -68,3 +68,8 @@ def deprecated_fields(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def webhooks_31(fixtures_dir: Path) -> Path:
     return fixtures_dir / "webhooks_3.1.yaml"
+
+
+@pytest.fixture
+def allof_inheritance(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "allof_inheritance.yaml"

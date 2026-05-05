@@ -4,6 +4,8 @@ ServiceScaffolder — writes service stub files, adding missing methods on re-ru
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -226,6 +228,143 @@ class ServiceScaffolder:
         tag_result.appended_items = len(new_ops)
         tag_result.appended_files = [tag_dirname]
         return tag_result
+
+
+@dataclass
+class DriftItem:
+    """A single drift finding from detect_service_drift."""
+
+    kind: str  # "missing_file" | "missing_method" | "orphaned_method" | "signature_changed"
+    file: str
+    method: str | None
+    detail: str
+
+
+def detect_service_drift(
+    cfg: Any,
+    tag_filter: list[str] | None = None,
+) -> list[DriftItem]:
+    """Read-only: compare service files on disk against the spec.
+
+    Returns DriftItem entries for missing files, missing methods, orphaned
+    methods, and signature changes. Never writes anything.
+    """
+    from pyoas.core.analysis import (
+        build_schema_tag_map,
+        collect_inline_schemas,
+        detect_generic_groups_global,
+        find_split_schema_names,
+    )
+    from pyoas.core.parser import SpecParser
+    from pyoas.core.resolver import resolve_refs
+    from pyoas.core.tags import extract_tags
+
+    spec_raw = SpecParser(cfg.spec).load()
+    spec = resolve_refs(spec_raw, cfg.spec)
+    grouped = extract_tags(spec, default_tag=cfg.default_tag)
+    grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+    if tag_filter:
+        grouped = {k: v for k, v in grouped.items() if k in tag_filter}
+        grouped_raw = {k: v for k, v in grouped_raw.items() if k in tag_filter}
+
+    global_security: list[Any] = spec_raw.get("security") or []
+    raw_cs = spec_raw.get("components", {}).get("schemas", {})
+    full_grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+    schema_tag_map = build_schema_tag_map(spec_raw, full_grouped_raw)
+    generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
+    generic_name_map: dict[str, str] = {
+        inst["schema_name"]: f"{g.generic_name}[{inst['type_param']}]"
+        for g in generic_groups.values()
+        for inst in g.instances
+    }
+    split_schema_names = find_split_schema_names(spec_raw)
+    inline_by_tag, _ = collect_inline_schemas(grouped, grouped_raw)
+    inline_schema_tag_map: dict[str, str] = {
+        entry["name"]: t for t, entries in inline_by_tag.items() for entry in entries
+    }
+
+    items: list[DriftItem] = []
+    svc_root = Path(cfg.services.output)
+
+    for tag, operations in grouped.items():
+        raw_ops = grouped_raw.get(tag, [])
+        merged = [
+            {**op, "raw_operation": raw_op["operation"]}
+            for op, raw_op in zip(operations, raw_ops)
+        ]
+        context = _build_service_context(
+            tag,
+            merged,
+            cfg,
+            generic_name_map,
+            schema_tag_map=schema_tag_map,
+            generic_groups=generic_groups,
+            split_schema_names=split_schema_names,
+            inline_schema_tag_map=inline_schema_tag_map,
+            global_security=global_security,
+        )
+        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        svc_file = svc_root / f"{tag_dirname}.py"
+        current_ops = {op["function_name"] for op in context["operations"]}
+
+        if not svc_file.exists():
+            items.append(
+                DriftItem(
+                    kind="missing_file",
+                    file=str(svc_file),
+                    method=None,
+                    detail=f"{svc_file} does not exist",
+                )
+            )
+            continue
+
+        existing_src = svc_file.read_text(encoding="utf-8")
+        existing_methods = set(
+            re.findall(r"^\s{4}async def (\w+)\(", existing_src, re.MULTILINE)
+        )
+        # Missing methods (in spec but not in file)
+        for fn in sorted(current_ops - existing_methods):
+            items.append(
+                DriftItem(
+                    kind="missing_method",
+                    file=str(svc_file),
+                    method=fn,
+                    detail=f"method '{fn}' is in the spec but missing from {svc_file}",
+                )
+            )
+        # Orphaned methods (in file but not in spec)
+        for fn in sorted(existing_methods - current_ops):
+            items.append(
+                DriftItem(
+                    kind="orphaned_method",
+                    file=str(svc_file),
+                    method=fn,
+                    detail=f"method '{fn}' has no matching operation in the spec",
+                )
+            )
+        # Signature drift for methods present in both
+        shared = existing_methods & current_ops
+        if shared:
+            ops_by_name = {op["function_name"]: op for op in context["operations"]}
+            dep_import_path = context.get("dep_import_path")
+            for fn in sorted(shared):
+                expected = _expected_sig_str(ops_by_name[fn], dep_import_path)
+                actual = _actual_sig_str(existing_src, fn)
+                if actual is not None and actual != expected:
+                    items.append(
+                        DriftItem(
+                            kind="signature_changed",
+                            file=str(svc_file),
+                            method=fn,
+                            detail=(
+                                f"signature changed\n"
+                                f"  expected: {expected}\n"
+                                f"  actual:   {actual}"
+                            ),
+                        )
+                    )
+
+    return items
 
 
 def _expected_sig_str(op: dict[str, Any], dep_import_path: str | None = None) -> str:

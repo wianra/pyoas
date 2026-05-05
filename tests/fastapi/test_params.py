@@ -487,6 +487,55 @@ def test_multipart_no_properties_falls_back_to_bytes() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_multipart_opaque_body_description_contains_todo() -> None:
+    """Opaque form body (no properties, no $ref) emits TODO in description."""
+    operation = {
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {"type": "object"},
+                }
+            },
+        },
+        "responses": {},
+    }
+    params = build_function_params(operation)
+    assert params[0]["description"] is not None
+    assert "TODO" in (params[0]["description"] or "")
+
+
+def test_multipart_ref_schema_no_properties_emits_model_name() -> None:
+    """Form schema is a $ref to a component with no properties → emit typed body."""
+    operation = {
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {"type": "object"},  # resolved: no properties
+                }
+            },
+        },
+        "responses": {},
+    }
+    raw_operation = {
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {"$ref": "#/components/schemas/OpaqueUpload"},
+                }
+            },
+        }
+    }
+    params = build_function_params(operation, raw_operation=raw_operation)
+    assert len(params) == 1
+    assert params[0]["name"] == "body"
+    assert "OpaqueUpload" in params[0]["python_type"]
+    assert "bytes" not in params[0]["python_type"]
+    assert "TODO" not in (params[0]["description"] or "")
+
+
 def test_body_param_has_annotated_body_wrapper() -> None:
     """Router params retain Annotated[T, Body()] — services strip this."""
     operation = {

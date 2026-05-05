@@ -1,0 +1,64 @@
+openapi: "3.0.0"
+info:
+  title: AllOf Inheritance Test
+  version: "1.0.0"
+paths:
+  /dogs:
+    get:
+      operationId: listDogs
+      tags: [animals]
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dog"
+  /animals:
+    get:
+      # A second tag that also references Animal → forces Animal into shared.py
+      operationId: listAnimalsDirect
+      tags: [pets]
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Animal"
+components:
+  schemas:
+    Animal:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Animal name
+    Dog:
+      # Nested allOf: properties inside allOf sub-schema, not at top level
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+        - type: object
+          properties:
+            breed:
+              type: string
+              description: Dog breed
+    DogFlat:
+      # Flat allOf: properties at top level (already works, regression test)
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+      properties:
+        coat:
+          type: string
+          description: Coat type
+    DogNoExtras:
+      # Single-ref allOf with no additional properties → should generate pass
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+    MultiParent:
+      # Two-ref allOf → should flatten (not use true inheritance)
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+        - $ref: "#/components/schemas/Dog"

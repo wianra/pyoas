@@ -313,23 +313,51 @@ def build_function_params(
                             }
                         )
                 else:
-                    # Schema not resolvable to individual fields — fall back to bytes
-                    params.append(
-                        {
-                            "name": "body",
-                            "python_type": "Annotated[bytes, Body()]",
-                            "location": "body",
-                            "required": body.get("required", False),
-                            "default": None,
-                            "default_repr": None,
-                            "description": f"# TODO: {form_type} body — schema not resolved",
-                            "alias": "body",
-                            "fastapi_class": "Body",
-                            "constraints": {},
-                            "string_constraints": {},
-                            "enum_values": None,
-                        }
+                    # Schema not resolvable to individual fields.
+                    # Check if the raw form schema is a component $ref — if so,
+                    # emit the model name as a typed body instead of bytes.
+                    raw_body = (raw_operation or {}).get("requestBody") or {}
+                    raw_form_schema = (
+                        (raw_body.get("content") or {})
+                        .get(form_type, {})
+                        .get("schema", {})
                     )
+                    if isinstance(raw_form_schema, dict) and "$ref" in raw_form_schema:
+                        ref_name = raw_form_schema["$ref"].split("/")[-1]
+                        params.append(
+                            {
+                                "name": "body",
+                                "python_type": f"Annotated[{ref_name}, Body()]",
+                                "location": "body",
+                                "required": body.get("required", False),
+                                "default": None,
+                                "default_repr": None,
+                                "description": body.get("description"),
+                                "alias": "body",
+                                "fastapi_class": "Body",
+                                "constraints": {},
+                                "string_constraints": {},
+                                "enum_values": None,
+                            }
+                        )
+                    else:
+                        # Genuine fallback — opaque form body with no resolvable schema
+                        params.append(
+                            {
+                                "name": "body",
+                                "python_type": "Annotated[bytes, Body()]",
+                                "location": "body",
+                                "required": body.get("required", False),
+                                "default": None,
+                                "default_repr": None,
+                                "description": f"# TODO: {form_type} body — schema not resolved",
+                                "alias": "body",
+                                "fastapi_class": "Body",
+                                "constraints": {},
+                                "string_constraints": {},
+                                "enum_values": None,
+                            }
+                        )
             else:
                 # Unrecognized content type (e.g. text/plain, application/xml, image/*) —
                 # emit bytes placeholder so the endpoint compiles and handles the body.

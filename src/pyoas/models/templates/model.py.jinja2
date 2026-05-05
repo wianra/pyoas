@@ -58,6 +58,9 @@ class {{ schema.name }}({% if schema.is_generic %}BaseModel, Generic[{{ schema.t
     {{ field.name }}: {{ field.python_type }} = Field({% for k, v in field.field_kwargs %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %})
 {% endif %}
 {% endfor %}
+{% if not schema.fields %}
+    pass
+{% endif %}
 {% endif %}
 
 {% endfor %}

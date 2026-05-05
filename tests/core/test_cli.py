@@ -643,3 +643,90 @@ def test_init_config_contains_webhooks_section(tmp_path: Path) -> None:
     content = out.read_text()
     assert "webhooks:" in content
     assert "generate: false" in content
+
+
+# ---------------------------------------------------------------------------
+# drift
+# ---------------------------------------------------------------------------
+
+
+def test_drift_exits_zero_when_services_not_configured(tmp_path: Path) -> None:
+    """drift exits 0 and prints info when services are not configured."""
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["drift", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "not configured" in result.output
+
+
+def test_drift_exits_one_on_missing_service_file(tmp_path: Path) -> None:
+    """drift exits 1 and shows [missing file] when service file doesn't exist."""
+    (tmp_path / "services").mkdir()
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "petstore_3.0.yaml",
+        services={
+            "generate": True,
+            "output": str(tmp_path / "services"),
+            "import_path": "app.services",
+        },
+    )
+    result = runner.invoke(app, ["drift", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "[missing file]" in result.output
+
+
+def test_drift_exits_one_on_missing_method(tmp_path: Path) -> None:
+    """drift exits 1 and shows [missing method] when a method is absent."""
+    svc_dir = tmp_path / "services"
+    svc_dir.mkdir()
+    (svc_dir / "pets.py").write_text(
+        "class PetsService:\n    async def list_pets(self) -> None:\n        pass\n"
+    )
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "petstore_3.0.yaml",
+        services={
+            "generate": True,
+            "output": str(svc_dir),
+            "import_path": "app.services",
+        },
+    )
+    result = runner.invoke(app, ["drift", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "[missing method]" in result.output
+
+
+def test_drift_exits_zero_when_up_to_date(tmp_path: Path) -> None:
+    """drift exits 0 when service files match the spec."""
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "petstore_3.0.yaml",
+        services={
+            "generate": True,
+            "output": str(tmp_path / "services"),
+            "import_path": "app.services",
+        },
+    )
+    # Scaffold services first so they match the spec
+    runner.invoke(app, ["scaffold", "services", "--config", str(cfg)])
+    result = runner.invoke(app, ["drift", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "No drift" in result.output
+
+
+def test_drift_tag_filter_restricts_check(tmp_path: Path) -> None:
+    """drift --tags only checks the specified tag."""
+    (tmp_path / "services").mkdir()
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "multi_tag.yaml",
+        services={
+            "generate": True,
+            "output": str(tmp_path / "services"),
+            "import_path": "app.services",
+        },
+    )
+    result = runner.invoke(app, ["drift", "--config", str(cfg), "--tags", "users"])
+    assert result.exit_code == 1
+    assert "users" in result.output
+    assert "orders" not in result.output

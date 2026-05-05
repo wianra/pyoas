@@ -160,13 +160,24 @@ def _render_schema(
         ]
 
     # Regular object schema — collect fields.
-    properties = schema.get("properties") or {}
-    raw_properties = (raw_schema or {}).get("properties") or {}
-    required_props: list[str] = schema.get("required") or []
+    bases = _find_allof_bases(raw_schema)
+
+    if bases and _is_single_ref_allof(raw_schema) and not schema.get("properties"):
+        # Nested allOf pattern: child properties live inside allOf sub-schemas,
+        # not at the top level.  Extract only the child's own additions —
+        # the inherited parent properties are handled by the base class.
+        child_raw_props, child_resolved_props, child_required = _child_only_properties(
+            raw_schema or {}, schema
+        )
+        raw_properties = child_raw_props
+        properties = child_resolved_props
+        required_props = child_required
+    else:
+        properties = schema.get("properties") or {}
+        raw_properties = (raw_schema or {}).get("properties") or {}
+        required_props = schema.get("required") or []
 
     fields = _build_fields(properties, raw_properties, required_props, config)
-
-    bases = _find_allof_bases(raw_schema)
 
     # Split into Read/Write variants when ANY readOnly or writeOnly annotation exists.
     has_read_only = any(f["read_only"] for f in fields)
@@ -229,6 +240,46 @@ def _find_allof_bases(raw_schema: dict[str, Any] | None) -> list[str]:
             if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
                 bases.append(ref.split("/")[-1])
     return bases
+
+
+def _is_single_ref_allof(raw_schema: dict[str, Any] | None) -> bool:
+    """True when allOf contains exactly one $ref entry (and possibly non-$ref entries)."""
+    if not raw_schema:
+        return False
+    all_of = raw_schema.get("allOf") or []
+    ref_count = sum(1 for s in all_of if isinstance(s, dict) and "$ref" in s)
+    return ref_count == 1
+
+
+def _child_only_properties(
+    raw_schema: dict[str, Any],
+    resolved_schema: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    """Extract child-own properties from non-$ref allOf sub-schemas.
+
+    When a schema uses ``allOf`` with one ``$ref`` and additional inline
+    sub-schemas, the inline entries hold the child's own new properties.
+    This function returns ``(raw_props, resolved_props, required)`` for
+    those child-own properties only — the parent's properties are excluded
+    because they belong to the inherited base class.
+    """
+    raw_all_of = raw_schema.get("allOf") or []
+    resolved_all_of = resolved_schema.get("allOf") or []
+
+    child_raw_props: dict[str, Any] = {}
+    child_resolved_props: dict[str, Any] = {}
+    child_required: list[str] = []
+
+    for i, raw_sub in enumerate(raw_all_of):
+        if isinstance(raw_sub, dict) and "$ref" not in raw_sub:
+            child_raw_props.update(raw_sub.get("properties") or {})
+            child_required.extend(raw_sub.get("required") or [])
+            if i < len(resolved_all_of):
+                resolved_sub = resolved_all_of[i]
+                if isinstance(resolved_sub, dict):
+                    child_resolved_props.update(resolved_sub.get("properties") or {})
+
+    return child_raw_props, child_resolved_props, child_required
 
 
 def _build_field_kwargs(

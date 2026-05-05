@@ -156,6 +156,10 @@ def _build_models_context(
                     for sname in all_shared_names:
                         if sname in f["python_type"]:
                             referenced_shared.add(sname)
+                # Also check base class names used in inheritance
+                for base_name in rs.get("bases", []):
+                    if base_name in all_shared_names:
+                        referenced_shared.add(base_name)
         shared_imports = sorted(referenced_shared)
 
     return {

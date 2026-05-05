@@ -4,7 +4,7 @@ _Updated: 2026-05-05_
 
 ## Project State
 
-Architecture complete, production-quality implementation. 282 tests, all green. Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
+Architecture complete, production-quality implementation. 310 tests, all green. Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
 
 ---
 
@@ -59,15 +59,13 @@ Schema properties marked `deprecated: true` now emit `Field(deprecated=True)` co
 
 ---
 
-### 6. Multiple 2xx response handling
+### 6. ~~Multiple 2xx response handling~~ ✓ Done
 
-**Effort:** Medium | **Value:** Correctness for real-world specs
-
-`resolve_response_type()` picks the first 2xx response. Operations with multiple distinct 2xx schemas (200 + 201, 200 + 204) should produce a `Union` type or fall back to `fastapi.Response`. Affects correctness for high-coverage specs like GitHub's and Stripe's.
+`resolve_response_type()` now collects types from all 2xx responses. Identical types are deduplicated. Distinct model types produce a PEP 604 union (`T1 | T2`). A typed response alongside an empty body (e.g. 204) produces `T | None`. Binary content mixed with a JSON model falls back to `Response` (raw passthrough, no `response_model=` kwarg emitted). `needs_fastapi_response` context flag drives the `Response` import in the generated file. 28 new tests (6 unit + 3 integration + 1 snapshot).
 
 ---
 
-### 7. `pyoas doctor` diagnostic command
+### 7. ~~`pyoas doctor` diagnostic command~~ ✓ Done
 
 **Effort:** Small–Medium | **Value:** DX — prevents confusing generation failures
 
@@ -84,7 +82,7 @@ Zero runtime cost; runs entirely against the parsed spec before any generation.
 
 ---
 
-### 8. `pyoas drift` standalone command
+### 8. ~~`pyoas drift` standalone command~~ ✓ Done
 
 **Effort:** Small | **Value:** CI use case — detect service drift without writing files
 
@@ -94,7 +92,7 @@ Implementation: extract the drift-detection logic from `ServiceScaffolder` into 
 
 ---
 
-### 9. `allOf` inheritance in model generation
+### 9. ~~`allOf` inheritance in model generation~~ ✓ Done
 
 **Effort:** Medium | **Value:** Cleaner generated code for polymorphic specs
 
@@ -112,7 +110,7 @@ Tie to the shared `ParsedSpec` refactor (see Backlog) before running against Kub
 
 ---
 
-### 11. Multipart/form complex type resolution
+### 11. ~~Multipart/form complex type resolution~~ ✓ Done
 
 **Effort:** Medium | **Value:** Completeness
 
