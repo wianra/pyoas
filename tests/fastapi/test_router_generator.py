@@ -636,6 +636,60 @@ def test_multi_response_union_in_source(multi_response: Path) -> None:
         assert src.count("response_model=Item") >= 1
 
 
+# ---------------------------------------------------------------------------
+# Security scope annotation (T2-C)
+# ---------------------------------------------------------------------------
+
+
+def test_scope_comment_emitted_for_operations_with_scopes(
+    secured_scoped: Path,
+) -> None:
+    """Operations with explicit OAuth2 scopes get a '# Required scopes:' comment."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(secured_scoped), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "pets.py")
+        # listPets: read:pets only
+        assert "# Required scopes: read:pets" in src
+        # createPet: read:pets + write:pets
+        assert "# Required scopes: read:pets, write:pets" in src
+
+
+def test_no_scope_comment_for_explicit_no_auth(secured_scoped: Path) -> None:
+    """Operations with security: [] (explicit opt-out) must not have a scope comment."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(secured_scoped), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "pets.py")
+        # deletePet has security: [] — verify its section has no scope comment.
+        # The function appears once; scope comment appears only twice (list + create).
+        assert src.count("# Required scopes:") == 2
+
+
+def test_no_scope_comment_when_bearer_with_empty_scopes(secured: Path) -> None:
+    """Bearer auth without named scopes produces no '# Required scopes:' line."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(secured), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "items.py")
+        assert "# Required scopes:" not in src
+
+
+def test_scope_comment_snapshot(
+    secured_scoped: Path, snapshot: SnapshotAssertion
+) -> None:
+    """Snapshot: router generated from scoped OAuth2 spec."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(secured_scoped), tmp)
+        RouterGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "pets.py")
+        assert src == snapshot(name="pets_router_scoped_oauth2")
+
+
 def test_multi_response_bytes_fallback(tmp_path: Path) -> None:
     """When JSON + binary are mixed, Response is used and response_model is omitted."""
     from pyoas.core.parser import SpecParser

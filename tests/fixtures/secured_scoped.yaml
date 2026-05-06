@@ -1,0 +1,62 @@
+openapi: "3.1.0"
+info:
+  title: Scoped API
+  version: "1.0"
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      tags: [pets]
+      summary: List all pets
+      security:
+        - oauth2: [read:pets]
+      responses:
+        "200":
+          description: A list of pets
+    post:
+      operationId: createPet
+      tags: [pets]
+      summary: Create a pet
+      security:
+        - oauth2: [read:pets, write:pets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPet"
+      responses:
+        "201":
+          description: Created
+  /pets/{petId}:
+    delete:
+      operationId: deletePet
+      tags: [pets]
+      summary: Delete a pet (no auth)
+      security: []
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+components:
+  schemas:
+    NewPet:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /token
+          scopes:
+            read:pets: Read access to pets
+            write:pets: Write access to pets

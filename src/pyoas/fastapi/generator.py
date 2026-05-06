@@ -428,6 +428,28 @@ def _has_security(operation: dict[str, Any], global_security: list[Any]) -> bool
     return len(global_security) > 0
 
 
+def _extract_security_scopes(
+    operation: dict[str, Any], global_security: list[Any]
+) -> list[str]:
+    """Return a deduplicated list of OAuth2/scope strings required by this operation.
+
+    Falls back to *global_security* when the operation has no ``security`` key.
+    Returns ``[]`` when ``security: []`` is set (explicit opt-out of auth).
+    """
+    op_security = operation.get("security")
+    effective: list[Any] = op_security if op_security is not None else global_security
+    scopes: list[str] = []
+    for requirement in effective:
+        if not isinstance(requirement, dict):
+            continue
+        for scope_list in requirement.values():
+            if isinstance(scope_list, list):
+                for scope in scope_list:
+                    if scope not in scopes:
+                        scopes.append(scope)
+    return scopes
+
+
 def _render_operation(
     op_entry: dict[str, Any],
     config: Config,
@@ -475,6 +497,7 @@ def _render_operation(
         "deprecated": operation.get("deprecated", False),
         "operation_id": operation.get("operationId"),
         "has_security": _has_security(operation, global_security or []),
+        "required_scopes": _extract_security_scopes(operation, global_security or []),
         "x_extensions": {k: v for k, v in operation.items() if k.startswith("x-")},
         "is_webhook": is_webhook,
     }

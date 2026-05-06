@@ -40,24 +40,40 @@ class AuthContext:
 async def get_auth_context(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_scheme)],
 ) -> AuthContext:
+{% if all_scopes %}
+    # Required scopes: {{ all_scopes | join(", ") }}
+    # TODO: validate scopes
+{% endif %}
     # TODO: validate credentials.credentials (JWT, opaque token, …) and return an AuthContext.
     raise NotImplementedError
 {% elif scheme_type == "basic" %}
 async def get_auth_context(
     credentials: Annotated[HTTPBasicCredentials, Depends(_scheme)],
 ) -> AuthContext:
+{% if all_scopes %}
+    # Required scopes: {{ all_scopes | join(", ") }}
+    # TODO: validate scopes
+{% endif %}
     # TODO: validate credentials.username / credentials.password and return an AuthContext.
     raise NotImplementedError
 {% elif scheme_type == "apikey" %}
 async def get_auth_context(
     api_key: Annotated[str, Depends(_scheme)],
 ) -> AuthContext:
+{% if all_scopes %}
+    # Required scopes: {{ all_scopes | join(", ") }}
+    # TODO: validate scopes
+{% endif %}
     # TODO: validate api_key and return an AuthContext.
     raise NotImplementedError
 {% elif scheme_type == "oauth2" %}
 async def get_auth_context(
     token: Annotated[str, Depends(_scheme)],
 ) -> AuthContext:
+{% if all_scopes %}
+    # Required scopes: {{ all_scopes | join(", ") }}
+    # TODO: validate scopes
+{% endif %}
     # TODO: validate token and return an AuthContext.
     raise NotImplementedError
 {% endif %}

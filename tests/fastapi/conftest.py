@@ -78,3 +78,8 @@ def webhooks_31(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def multi_response(fixtures_dir: Path) -> Path:
     return fixtures_dir / "multi_response.yaml"
+
+
+@pytest.fixture
+def secured_scoped(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "secured_scoped.yaml"

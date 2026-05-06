@@ -75,6 +75,23 @@ def _has_any_secured_operation(spec_raw: dict[str, Any], default_tag: str) -> bo
     return False
 
 
+def _collect_all_scopes(spec_raw: dict[str, Any], default_tag: str) -> list[str]:
+    """Return a sorted, deduplicated list of all OAuth2 scope names in the spec."""
+    from pyoas.fastapi.generator import _extract_security_scopes
+
+    global_security: list[Any] = spec_raw.get("security") or []
+    grouped = extract_tags(spec_raw, default_tag=default_tag)
+    scopes: list[str] = []
+    for operations in grouped.values():
+        for op_entry in operations:
+            for scope in _extract_security_scopes(
+                op_entry["operation"], global_security
+            ):
+                if scope not in scopes:
+                    scopes.append(scope)
+    return sorted(scopes)
+
+
 class DependencyScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
@@ -107,9 +124,14 @@ class DependencyScaffolder:
 
         auth_file = output_root / "auth.py"
         if not auth_file.exists() or cfg.dependencies.overwrite:
+            all_scopes = _collect_all_scopes(spec_raw, cfg.default_tag)
             src = renderer.render(
                 "dependency_auth.py.jinja2",
-                {"scheme_type": scheme_type, "oauth2_token_url": oauth2_token_url},
+                {
+                    "scheme_type": scheme_type,
+                    "oauth2_token_url": oauth2_token_url,
+                    "all_scopes": all_scopes,
+                },
             )
             auth_file.write_text(src, encoding="utf-8")
             typer.echo(typer.style(f"  wrote  {auth_file}", fg=typer.colors.GREEN))

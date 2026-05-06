@@ -30,6 +30,9 @@ webhooks = APIRouter(tags=["{{ tag }}"])
 
 
 {% for op in operations %}
+{% if op.required_scopes %}
+# Required scopes: {{ op.required_scopes | join(", ") }}
+{% endif %}
 @{% if op.is_webhook %}webhooks{% else %}router{% endif %}.{{ op.method }}("{{ op.path }}"{% if op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model={{ op.response_type }}{% endif %}{% if op.status_code != 200 %}, status_code={{ op.status_code }}{% endif %}{% if op.deprecated %}, deprecated=True{% endif %}{% if op.summary %}, summary="{{ op.summary }}"{% endif %}{% if response_model_exclude_none and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_none=True{% endif %}{% if response_model_exclude_unset and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_unset=True{% endif %})
 {% set _has_kwonly_params = op.parameters or (op.has_security and dep_import_path) or service_import_path %}
 async def {{ op.function_name }}(
