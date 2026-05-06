@@ -21,6 +21,7 @@ def _build_models_context(
     schema_tag_map: dict[str, set[str]],
     request_only_names: set[str],
     generic_groups: dict[str, _GenericGroup] | None = None,
+    shared_defs_names: set[str] | None = None,
 ) -> dict[str, Any]:
     """Build the Jinja2 context dict for the model.py.jinja2 template."""
     generic_groups = generic_groups or {}
@@ -161,7 +162,10 @@ def _build_models_context(
         generic_bases_in_shared = {
             g.generic_name for g in generic_groups.values() if g.home_tag is None
         }
-        all_shared_names = shared_schema_names | generic_bases_in_shared
+        # $defs schemas routed to shared.py are not in schema_tag_map.
+        all_shared_names = (
+            shared_schema_names | generic_bases_in_shared | (shared_defs_names or set())
+        )
 
         referenced_shared: set[str] = set()
         for rs in rendered_schemas:

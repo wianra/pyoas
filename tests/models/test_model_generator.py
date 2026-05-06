@@ -892,3 +892,46 @@ def test_unique_items_as_set_false_emits_list_with_validator(
         assert "_deduplicate_unique_items" in src
         assert "object.__setattr__" in src
         assert src == snapshot(name="unique_items_list_with_validator")
+
+
+# ---------------------------------------------------------------------------
+# OAS 3.1 $defs support
+# ---------------------------------------------------------------------------
+
+
+def test_generate_inline_defs_31(
+    inline_defs_31: Path, snapshot: SnapshotAssertion
+) -> None:
+    """OAS 3.1 $defs schemas are collected and emitted as named classes."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(inline_defs_31), tmp)
+        ModelGenerator(cfg).generate()
+
+        output = Path(tmp)
+        assert (output / "pets.py").exists()
+        assert (output / "orders.py").exists()
+        assert (output / "shared.py").exists()
+
+        pets_src = _read(output / "pets.py")
+        orders_src = _read(output / "orders.py")
+        shared_src = _read(output / "shared.py")
+
+        # Tag-local $defs: PetStatus and Tag appear in pets.py
+        assert "PetStatus" in pets_src
+        assert "class Tag" in pets_src
+
+        # Tag-local $defs appear before the parent schema that references them
+        assert pets_src.index("class Tag") < pets_src.index("class Pet")
+
+        # Shared $defs: Label lives in shared.py and is imported in both tag files
+        assert "class Label" in shared_src
+        assert "from .shared import Label" in pets_src
+        assert "from .shared import Label" in orders_src
+
+        # Label must not be redeclared in the tag files
+        assert "class Label" not in pets_src
+        assert "class Label" not in orders_src
+
+        assert pets_src == snapshot(name="inline_defs_31_pets")
+        assert orders_src == snapshot(name="inline_defs_31_orders")
+        assert shared_src == snapshot(name="inline_defs_31_shared")

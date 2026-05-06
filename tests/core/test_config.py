@@ -80,6 +80,24 @@ def test_missing_spec_key(tmp_path: Path) -> None:
         load_config(str(cfg_file))
 
 
+def test_webhooks_config_defaults() -> None:
+    cfg = Config(spec="openapi.yaml")
+    assert cfg.webhooks.generate is False
+
+
+def test_webhooks_config_loaded_from_yaml(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        webhooks:
+          generate: true
+    """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.webhooks.generate is True
+
+
 def test_cli_diff_up_to_date(petstore_30: Path) -> None:
     """pyoas diff exits 0 when generated output is already up to date."""
     import tempfile

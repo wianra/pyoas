@@ -730,3 +730,40 @@ def test_drift_tag_filter_restricts_check(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert "users" in result.output
     assert "orders" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# scaffold webhooks
+# ---------------------------------------------------------------------------
+
+
+def test_scaffold_webhooks_exits_zero_when_enabled(tmp_path: Path) -> None:
+    """scaffold webhooks prints mount instructions when webhooks.generate is true."""
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "webhooks_3.1.yaml",
+        webhooks={"generate": True},
+    )
+    result = runner.invoke(app, ["scaffold", "webhooks", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    assert "include_router" in result.output
+
+
+def test_scaffold_webhooks_warns_when_not_configured(tmp_path: Path) -> None:
+    """scaffold webhooks exits 0 with an informative message when not enabled."""
+    cfg = _write_config(tmp_path, FIXTURES / "webhooks_3.1.yaml")
+    result = runner.invoke(app, ["scaffold", "webhooks", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "not enabled" in result.output
+
+
+def test_scaffold_webhooks_no_webhooks_in_spec(tmp_path: Path) -> None:
+    """scaffold webhooks exits 0 with info when spec has no webhook operations."""
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "petstore_3.0.yaml",
+        webhooks={"generate": True},
+    )
+    result = runner.invoke(app, ["scaffold", "webhooks", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "No webhook" in result.output

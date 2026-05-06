@@ -154,7 +154,23 @@ class RouterGenerator:
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
 
         all_tags = list(grouped.keys())
-        tag_entries = [{"name": t, "dirname": tag_to_dirname(t)} for t in all_tags]
+        webhook_tag_set: set[str] = (
+            {
+                tag
+                for tag, ops in grouped.items()
+                if any(op.get("is_webhook") for op in ops)
+            }
+            if include_webhooks
+            else set()
+        )
+        tag_entries = [
+            {
+                "name": t,
+                "dirname": tag_to_dirname(t),
+                "has_webhooks": t in webhook_tag_set,
+            }
+            for t in all_tags
+        ]
         root_init = renderer.render(
             "init.py.jinja2",
             {"tags": tag_entries, "is_root": True, "spec_hash": spec_hash},

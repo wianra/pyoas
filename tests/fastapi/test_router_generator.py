@@ -601,6 +601,39 @@ def test_generate_webhooks_disabled_no_webhooks_router(webhooks_31: Path) -> Non
         assert "webhooks = APIRouter" not in src
 
 
+def test_generate_webhooks_init_re_exports_webhooks_router(
+    webhooks_31: Path, snapshot: SnapshotAssertion
+) -> None:
+    """With webhooks.generate=True, __init__.py re-exports the webhooks router variable."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(webhooks_31),
+            output=OutputConfig(models="src/generated/models", routers=tmp),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            webhooks=WebhooksConfig(generate=True),
+        )
+        RouterGenerator(cfg).generate()
+
+        init_src = _read(Path(tmp) / "__init__.py")
+        assert (
+            "from .subscriptions import webhooks as subscriptions_webhooks" in init_src
+        )
+        assert init_src == snapshot(name="webhooks_init")
+
+
+def test_generate_webhooks_disabled_init_does_not_export_webhooks_router(
+    webhooks_31: Path,
+) -> None:
+    """With webhooks.generate=False (default), __init__.py does NOT re-export webhooks."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(webhooks_31), tmp)
+        RouterGenerator(cfg).generate()
+
+        init_src = _read(Path(tmp) / "__init__.py")
+        assert "webhooks as subscriptions_webhooks" not in init_src
+
+
 # ---------------------------------------------------------------------------
 # Multiple 2xx response handling
 # ---------------------------------------------------------------------------

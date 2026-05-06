@@ -69,6 +69,22 @@ def build_schema_tag_map(
     return tag_map
 
 
+def _parse_defs_ref(ref: str) -> tuple[str, str] | None:
+    """Parse a ``$defs`` ref like ``'#/components/schemas/Pet/$defs/Tag'``.
+
+    Returns ``(parent_schema_name, def_name)`` or ``None`` if not a ``$defs`` ref.
+    """
+    parts = ref.split("/")
+    # Expected: ['#', 'components', 'schemas', '{Parent}', '$defs', '{DefName}']
+    if (
+        len(parts) == 6
+        and parts[1:3] == ["components", "schemas"]
+        and parts[4] == "$defs"
+    ):
+        return parts[3], parts[5]
+    return None
+
+
 def _find_referenced_schemas(
     obj: Any,
     components_schemas: dict[str, Any],
@@ -95,15 +111,31 @@ def _find_referenced_schemas(
         if "$ref" in obj:
             ref = obj["$ref"]
             if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
-                name = ref.split("/")[-1]
-                if name in components_schemas and name not in names:
-                    names.append(name)
-                    # Follow transitive references within the referenced schema.
-                    names.extend(
-                        _find_referenced_schemas(
-                            components_schemas[name], components_schemas, _visited
+                defs_parsed = _parse_defs_ref(ref)
+                if defs_parsed is not None:
+                    # $defs ref: explore the $defs sub-schema for transitive
+                    # component-schema refs, but do NOT add the parent schema
+                    # name itself — the parent is only referenced when a direct
+                    # #/components/schemas/{Parent} ref exists.
+                    parent_name, def_name = defs_parsed
+                    parent_schema = components_schemas.get(parent_name, {})
+                    def_schema = (parent_schema.get("$defs") or {}).get(def_name)
+                    if def_schema is not None:
+                        names.extend(
+                            _find_referenced_schemas(
+                                def_schema, components_schemas, _visited
+                            )
                         )
-                    )
+                else:
+                    name = ref.split("/")[-1]
+                    if name in components_schemas and name not in names:
+                        names.append(name)
+                        # Follow transitive references within the referenced schema.
+                        names.extend(
+                            _find_referenced_schemas(
+                                components_schemas[name], components_schemas, _visited
+                            )
+                        )
         else:
             for v in obj.values():
                 names.extend(_find_referenced_schemas(v, components_schemas, _visited))

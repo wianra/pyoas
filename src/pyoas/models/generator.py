@@ -28,6 +28,7 @@ from pyoas.core.utils import (
 )
 
 from .classifier import (
+    _collect_defs_schemas,
     _collect_shared_schemas,
     _collect_tag_schemas,
     _find_request_only_schema_names,
@@ -111,6 +112,11 @@ class ModelGenerator:
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw)
         request_only_names = _find_request_only_schema_names(spec_raw)
 
+        resolved_components_schemas = spec.get("components", {}).get("schemas", {})
+        defs_by_tag, shared_defs = _collect_defs_schemas(
+            raw_components_schemas, resolved_components_schemas, schema_tag_map
+        )
+
         inline_by_tag, inline_request_names = collect_inline_schemas(
             grouped, grouped_raw
         )
@@ -135,6 +141,8 @@ class ModelGenerator:
                 "_group": group,
             }
 
+        _shared_defs_names: set[str] = {e["name"] for e in shared_defs}
+
         written: list[Path] = []
         tag_model_names: dict[str, list[str]] = {}
         for tag in grouped:
@@ -149,17 +157,21 @@ class ModelGenerator:
             ]
             tag_model_names[tag] = self._write_tag(
                 tag,
-                base_entries + tag_schemas + inline_by_tag.get(tag, []),
+                base_entries
+                + defs_by_tag.get(tag, [])
+                + tag_schemas
+                + inline_by_tag.get(tag, []),
                 renderer,
                 output_root,
                 schema_tag_map,
                 request_only_names,
                 generic_groups,
                 spec_hash=spec_hash,
+                shared_defs_names=_shared_defs_names,
             )
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
 
-        shared_schemas = _collect_shared_schemas(
+        shared_schemas = shared_defs + _collect_shared_schemas(
             spec, schema_tag_map, raw_components_schemas
         )
 
@@ -249,6 +261,7 @@ class ModelGenerator:
         request_only_names: set[str],
         generic_groups: dict[str, _GenericGroup] | None = None,
         spec_hash: str = "",
+        shared_defs_names: set[str] | None = None,
     ) -> list[str]:
         """Write {tag}.py for one tag. Returns rendered class names."""
         context = _build_models_context(
@@ -258,6 +271,7 @@ class ModelGenerator:
             schema_tag_map,
             request_only_names,
             generic_groups or {},
+            shared_defs_names=shared_defs_names,
         )
         context["spec_hash"] = spec_hash
         model_names = [

@@ -567,6 +567,50 @@ def scaffold_skills(
     SkillScaffolder(_load_cfg(config)).scaffold()
 
 
+@scaffold_app.command("webhooks")
+def scaffold_webhooks(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+) -> None:
+    """Show how to mount generated webhook routers onto your FastAPI app."""
+    cfg = _load_cfg(config)
+
+    if not cfg.webhooks.generate:
+        typer.echo(
+            "Webhook generation is not enabled. "
+            "Set webhooks.generate: true in pyoas.yaml to enable."
+        )
+        return
+
+    from pyoas.core.parsed_spec import ParsedSpec
+    from pyoas.core.tags import extract_tags
+    from pyoas.core.utils import tag_to_dirname
+
+    spec = ParsedSpec.from_config(cfg).resolved
+    grouped = extract_tags(spec, default_tag=cfg.default_tag, include_webhooks=True)
+
+    webhook_tags = [
+        tag for tag, ops in grouped.items() if any(op.get("is_webhook") for op in ops)
+    ]
+
+    if not webhook_tags:
+        typer.echo("No webhook operations found in spec.")
+        return
+
+    routers_import = cfg.output.routers_import
+    typer.echo("To mount webhook routers in your FastAPI app:\n")
+    typer.echo("    from fastapi import FastAPI")
+    typer.echo("    app = FastAPI()\n")
+    for tag in webhook_tags:
+        dirname = tag_to_dirname(tag)
+        typer.echo(
+            f"    from {routers_import}.{dirname} import webhooks as {dirname}_webhooks"
+        )
+    typer.echo("")
+    for tag in webhook_tags:
+        dirname = tag_to_dirname(tag)
+        typer.echo(f"    app.webhooks.include_router({dirname}_webhooks)")
+
+
 @app.command()
 def watch(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",

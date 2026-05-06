@@ -83,3 +83,8 @@ def circular_ref(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def unique_items(fixtures_dir: Path) -> Path:
     return fixtures_dir / "unique_items.yaml"
+
+
+@pytest.fixture
+def inline_defs_31(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "inline_defs_3.1.yaml"

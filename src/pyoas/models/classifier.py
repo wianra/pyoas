@@ -96,3 +96,90 @@ def _collect_shared_schemas(
         for name, tags in schema_tag_map.items()
         if len(tags) > 1 and name in components_schemas
     ]
+
+
+def _find_defs_ref_users(
+    raw_components_schemas: dict[str, Any],
+    parent_name: str,
+    def_name: str,
+) -> set[str]:
+    """Return component schema names that reference ``#/…/{parent_name}/$defs/{def_name}``."""
+    target_ref = f"#/components/schemas/{parent_name}/$defs/{def_name}"
+    users: set[str] = set()
+
+    def _walk(obj: Any, owner: str) -> None:
+        if isinstance(obj, dict):
+            if obj.get("$ref") == target_ref:
+                users.add(owner)
+            else:
+                for v in obj.values():
+                    _walk(v, owner)
+        elif isinstance(obj, list):
+            for item in obj:
+                _walk(item, owner)
+
+    for schema_name, schema in raw_components_schemas.items():
+        _walk(schema, schema_name)
+
+    return users
+
+
+def _collect_defs_schemas(
+    raw_components_schemas: dict[str, Any],
+    resolved_components_schemas: dict[str, Any],
+    schema_tag_map: dict[str, set[str]],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """Collect schemas from ``$defs`` blocks inside component schemas.
+
+    Returns:
+        defs_by_tag:  tag_name → list of schema entries (tag-local ``$defs``)
+        shared_defs:  list of schema entries (``$defs`` referenced by multiple tags)
+    """
+    defs_by_tag: dict[str, list[dict[str, Any]]] = {}
+    shared_defs: list[dict[str, Any]] = []
+    seen_refs: set[str] = set()
+
+    for parent_name, raw_parent in raw_components_schemas.items():
+        if not isinstance(raw_parent, dict):
+            continue
+        defs_block = raw_parent.get("$defs")
+        if not isinstance(defs_block, dict):
+            continue
+
+        resolved_parent = resolved_components_schemas.get(parent_name) or {}
+        resolved_defs_block: dict[str, Any] = (
+            resolved_parent.get("$defs") or {}
+            if isinstance(resolved_parent, dict)
+            else {}
+        )
+
+        for def_name, raw_def_schema in defs_block.items():
+            ref_path = f"#/components/schemas/{parent_name}/$defs/{def_name}"
+            if ref_path in seen_refs:
+                continue
+            seen_refs.add(ref_path)
+
+            resolved_def_schema = resolved_defs_block.get(def_name, raw_def_schema)
+
+            user_schemas = _find_defs_ref_users(
+                raw_components_schemas, parent_name, def_name
+            )
+
+            tags_involved: set[str] = set()
+            for user_schema_name in user_schemas:
+                tags_involved.update(schema_tag_map.get(user_schema_name, set()))
+
+            entry: dict[str, Any] = {
+                "name": def_name,
+                "schema": resolved_def_schema,
+                "raw_schema": raw_def_schema,
+            }
+
+            if len(tags_involved) > 1:
+                shared_defs.append(entry)
+            elif len(tags_involved) == 1:
+                tag = next(iter(tags_involved))
+                defs_by_tag.setdefault(tag, []).append(entry)
+            # Unreferenced $defs (tags_involved == empty) are skipped.
+
+    return defs_by_tag, shared_defs

@@ -166,10 +166,10 @@ currently resolved or collected by the classifier or generator.
 **Files touched:** `core/resolver/__init__.py`, `models/classifier.py`,
 `models/context.py`.
 
-- [ ] Resolve `$defs` references
-- [ ] Collect `$defs` schemas in classifier
-- [ ] Render as inner or module-level classes
-- [ ] Fixture `tests/fixtures/inline_defs_3.1.yaml` + snapshot
+- [x] Resolve `$defs` references
+- [x] Collect `$defs` schemas in classifier
+- [x] Render as inner or module-level classes
+- [x] Fixture `tests/fixtures/inline_defs_3.1.yaml` + snapshot
 
 ---
 
@@ -193,11 +193,11 @@ never calls it, and there is no config path to enable it.
 **Files touched:** `core/config.py`, `fastapi/generator.py`,
 `fastapi/templates/init.py.jinja2`, `core/cli.py`.
 
-- [ ] Config option
-- [ ] Generator wiring
-- [ ] `__init__.py` re-export
-- [ ] CLI sub-command
-- [ ] Tests with `tests/fixtures/webhooks_3.1.yaml`
+- [x] Config option
+- [x] Generator wiring
+- [x] `__init__.py` re-export
+- [x] CLI sub-command
+- [x] Tests with `tests/fixtures/webhooks_3.1.yaml`
 
 ---
 
