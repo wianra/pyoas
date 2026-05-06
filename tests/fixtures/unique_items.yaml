@@ -1,0 +1,36 @@
+openapi: "3.1.0"
+info:
+  title: UniqueItems API
+  version: "1.0"
+paths:
+  /resources:
+    get:
+      operationId: listResources
+      tags: [resources]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+components:
+  schemas:
+    Resource:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+          description: Unique string tags
+        ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: integer
+          description: Unique integer IDs
+        name:
+          type: string

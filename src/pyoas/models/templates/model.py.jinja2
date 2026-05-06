@@ -18,7 +18,7 @@ from .shared import {{ name }}
 {% endfor %}
 
 {% endif %}
-{% set _pydantic_extras = ", Discriminator, Tag" if needs_tag_discriminator else "" %}
+{% set _pydantic_extras = "" %}{% if needs_tag_discriminator %}{% set _pydantic_extras = _pydantic_extras + ", Discriminator, Tag" %}{% endif %}{% if needs_model_validator %}{% set _pydantic_extras = _pydantic_extras + ", model_validator" %}{% endif %}
 from pydantic import BaseModel, ConfigDict, Field{{ _pydantic_extras }}
 {% if type_vars %}
 
@@ -61,6 +61,20 @@ class {{ schema.name }}({% if schema.is_generic %}BaseModel, Generic[{{ schema.t
 {% endfor %}
 {% if not schema.fields %}
     pass
+{% endif %}
+{% if schema.dedup_unique_fields %}
+    @model_validator(mode="after")
+    def _deduplicate_unique_items(self) -> "{{ schema.name }}":
+        """Preserve list type for JSON serialisation while enforcing uniqueness."""
+{% for field_name in schema.dedup_unique_fields %}
+        if isinstance(self.{{ field_name }}, list):
+            _seen: list = []
+            for _item in self.{{ field_name }}:
+                if _item not in _seen:
+                    _seen.append(_item)
+            object.__setattr__(self, "{{ field_name }}", _seen)
+{% endfor %}
+        return self
 {% endif %}
 {% endif %}
 

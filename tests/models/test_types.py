@@ -209,6 +209,11 @@ def test_unique_items_produces_set() -> None:
     assert schema_to_python_type(schema) == "set[str]"
 
 
+def test_unique_items_as_set_false_produces_list() -> None:
+    schema = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    assert schema_to_python_type(schema, unique_items_as_set=False) == "list[str]"
+
+
 def test_array_without_unique_items_produces_list() -> None:
     schema = {"type": "array", "items": {"type": "string"}}
     assert schema_to_python_type(schema) == "list[str]"

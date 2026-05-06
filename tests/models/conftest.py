@@ -78,3 +78,8 @@ def allof_inheritance(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def circular_ref(fixtures_dir: Path) -> Path:
     return fixtures_dir / "circular_ref.yaml"
+
+
+@pytest.fixture
+def unique_items(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "unique_items.yaml"

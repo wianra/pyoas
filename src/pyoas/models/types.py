@@ -56,6 +56,7 @@ def schema_to_python_type(
     context_name: str = "",
     raw_schema: dict[str, Any] | None = None,
     generic_name_map: dict[str, str] | None = None,
+    unique_items_as_set: bool = True,
 ) -> str:
     """
     Return a Python type annotation string for the given OpenAPI schema.
@@ -92,6 +93,7 @@ def schema_to_python_type(
         enums_as_literals=enums_as_literals,
         context_name=context_name,
         raw_schema=raw_schema,
+        unique_items_as_set=unique_items_as_set,
     )
 
     if is_nullable and base != "None":
@@ -129,6 +131,7 @@ def _base_type(
     enums_as_literals: bool,
     context_name: str,
     raw_schema: dict[str, Any] | None = None,
+    unique_items_as_set: bool = True,
 ) -> str:
     # OAS 'not' keyword — cannot be expressed as a Python type annotation.
     if "not" in schema:
@@ -144,7 +147,11 @@ def _base_type(
     prefix_items = schema.get("prefixItems")
     if prefix_items and isinstance(prefix_items, list):
         item_types = [
-            schema_to_python_type(item, enums_as_literals=enums_as_literals)
+            schema_to_python_type(
+                item,
+                enums_as_literals=enums_as_literals,
+                unique_items_as_set=unique_items_as_set,
+            )
             for item in prefix_items
             if isinstance(item, dict)
         ]
@@ -152,7 +159,9 @@ def _base_type(
             tail_schema = schema.get("items")
             if isinstance(tail_schema, dict):
                 tail_type = schema_to_python_type(
-                    tail_schema, enums_as_literals=enums_as_literals
+                    tail_schema,
+                    enums_as_literals=enums_as_literals,
+                    unique_items_as_set=unique_items_as_set,
                 )
                 item_types.append(f"*tuple[{tail_type}, ...]")
             return f"tuple[{', '.join(item_types)}]"
@@ -186,7 +195,10 @@ def _base_type(
             raw_s = raw_items[i] if i < len(raw_items) else None
             parts.append(
                 schema_to_python_type(
-                    s, enums_as_literals=enums_as_literals, raw_schema=raw_s
+                    s,
+                    enums_as_literals=enums_as_literals,
+                    raw_schema=raw_s,
+                    unique_items_as_set=unique_items_as_set,
                 )
             )
         return " | ".join(parts) if len(parts) > 1 else (parts[0] if parts else "Any")
@@ -202,7 +214,10 @@ def _base_type(
                 raw_s = raw_items[i] if i < len(raw_items) else None
                 parts.append(
                     schema_to_python_type(
-                        s, enums_as_literals=enums_as_literals, raw_schema=raw_s
+                        s,
+                        enums_as_literals=enums_as_literals,
+                        raw_schema=raw_s,
+                        unique_items_as_set=unique_items_as_set,
                     )
                 )
 
@@ -237,7 +252,11 @@ def _base_type(
             raw_type = non_null[0]
         elif len(non_null) > 1:
             parts = [
-                schema_to_python_type({"type": t}, enums_as_literals=enums_as_literals)
+                schema_to_python_type(
+                    {"type": t},
+                    enums_as_literals=enums_as_literals,
+                    unique_items_as_set=unique_items_as_set,
+                )
                 for t in non_null
             ]
             return " | ".join(parts)
@@ -259,12 +278,15 @@ def _base_type(
                     items,
                     enums_as_literals=enums_as_literals,
                     raw_schema=raw_items_schema,
+                    unique_items_as_set=unique_items_as_set,
                 )
                 if items
                 else "Any"
             )
             if schema.get("uniqueItems"):
-                return f"set[{item_type}]"
+                return (
+                    f"set[{item_type}]" if unique_items_as_set else f"list[{item_type}]"
+                )
             return f"list[{item_type}]"
         case "object":
             props = schema.get("properties")
@@ -274,7 +296,9 @@ def _base_type(
             additional = schema.get("additionalProperties")
             if isinstance(additional, dict):
                 val_type = schema_to_python_type(
-                    additional, enums_as_literals=enums_as_literals
+                    additional,
+                    enums_as_literals=enums_as_literals,
+                    unique_items_as_set=unique_items_as_set,
                 )
                 return f"dict[str, {val_type}]"
             return "dict[str, Any]"

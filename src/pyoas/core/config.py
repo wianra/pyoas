@@ -37,6 +37,9 @@ class ModelConfig:
 class FieldsConfig:
     snake_case: bool = True
     enums_as_literals: bool = True
+    unique_items_as_set: bool = (
+        True  # emit set[T]; False → list[T] with dedup validator
+    )
 
 
 @dataclass
@@ -171,6 +174,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
         fields=FieldsConfig(
             snake_case=fld.get("snake_case", True),
             enums_as_literals=fld.get("enums_as_literals", True),
+            unique_items_as_set=fld.get("unique_items_as_set", True),
         ),
         format=FormatConfig(enabled=fmt.get("enabled", True)),
         templates=TemplatesConfig(

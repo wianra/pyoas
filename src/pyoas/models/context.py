@@ -98,6 +98,19 @@ def _build_models_context(
     # they must appear after all class definitions they reference.
     rendered_schemas.sort(key=lambda rs: 1 if rs.get("is_alias") else 0)
 
+    # Collect unique-items dedup fields per schema (only when unique_items_as_set=False).
+    needs_model_validator = False
+    for rs in rendered_schemas:
+        if rs.get("is_alias") or rs.get("is_enum_class"):
+            rs.setdefault("dedup_unique_fields", [])
+            continue
+        dedup_fields = [
+            f["name"] for f in rs.get("fields", []) if f.get("has_unique_items")
+        ]
+        rs["dedup_unique_fields"] = dedup_fields
+        if dedup_fields:
+            needs_model_validator = True
+
     all_imports: set[str] = set()
     needs_any = False
     needs_literal = False
@@ -187,6 +200,7 @@ def _build_models_context(
         "needs_generic": needs_generic,
         "needs_str_enum": needs_str_enum,
         "needs_int_enum": needs_int_enum,
+        "needs_model_validator": needs_model_validator,
         "type_vars": ["T"] if needs_generic else [],
         "model_config": config.model_config,
         "shared_imports": shared_imports,

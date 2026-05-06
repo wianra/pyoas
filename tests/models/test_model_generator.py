@@ -846,3 +846,49 @@ def test_generate_circular_ref(circular_ref: Path, snapshot: SnapshotAssertion) 
         assert "from __future__ import annotations" in src
         assert "class TreeNode" in src
         assert src == snapshot(name="circular_ref_trees")
+
+
+# ---------------------------------------------------------------------------
+# uniqueItems serialization
+# ---------------------------------------------------------------------------
+
+
+def test_unique_items_default_emits_set(unique_items: Path) -> None:
+    """Default config (unique_items_as_set=True): uniqueItems fields use set[T]."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(unique_items), tmp)
+        ModelGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "resources.py")
+        assert "set[str]" in src
+        assert "model_validator" not in src
+
+
+def test_unique_items_as_set_false_emits_list_with_validator(
+    unique_items: Path, snapshot: SnapshotAssertion
+) -> None:
+    """unique_items_as_set=False: uniqueItems fields use list[T] + dedup model_validator."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(unique_items),
+            output=OutputConfig(models=tmp, routers=""),
+            model_config=ModelConfig(
+                extra="ignore", frozen=False, populate_by_name=True
+            ),
+            fields=FieldsConfig(
+                snake_case=True, enums_as_literals=True, unique_items_as_set=False
+            ),
+            format=FormatConfig(enabled=False),
+        )
+        ModelGenerator(cfg).generate()
+
+        src = _read(Path(tmp) / "resources.py")
+        # Fields must be list, not set
+        assert "list[str]" in src
+        assert "list[int]" in src
+        assert "set[" not in src
+        # Dedup validator must be present
+        assert "model_validator" in src
+        assert "_deduplicate_unique_items" in src
+        assert "object.__setattr__" in src
+        assert src == snapshot(name="unique_items_list_with_validator")

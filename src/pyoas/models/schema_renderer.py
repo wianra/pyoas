@@ -37,13 +37,15 @@ def _build_fields(
         is_required = prop_name in required_props
         field_name = to_snake_case(prop_name) if config.fields.snake_case else prop_name
 
-        if t_field_override and prop_name == t_field_override[0]:
-            py_type = "list[T]" if t_field_override[1] else "T"
+        is_t_override = t_field_override and prop_name == t_field_override[0]
+        if is_t_override:
+            py_type = "list[T]" if t_field_override[1] else "T"  # type: ignore[index]
         else:
             py_type = schema_to_python_type(
                 prop_schema,
                 enums_as_literals=config.fields.enums_as_literals,
                 raw_schema=raw_prop,
+                unique_items_as_set=config.fields.unique_items_as_set,
             )
             if (
                 not is_required
@@ -51,6 +53,13 @@ def _build_fields(
                 and "None" not in py_type
             ):
                 py_type = f"{py_type} | None"
+
+        # Track fields that need deduplication (uniqueItems=true, list mode).
+        has_unique_items = (
+            not is_t_override
+            and not config.fields.unique_items_as_set
+            and bool(prop_schema.get("uniqueItems"))
+        )
 
         fields.append(
             {
@@ -64,6 +73,7 @@ def _build_fields(
                 ),
                 "read_only": prop_schema.get("readOnly", False),
                 "write_only": prop_schema.get("writeOnly", False),
+                "has_unique_items": has_unique_items,
             }
         )
     return fields
