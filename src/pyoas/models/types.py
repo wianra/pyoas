@@ -149,6 +149,12 @@ def _base_type(
             if isinstance(item, dict)
         ]
         if item_types:
+            tail_schema = schema.get("items")
+            if isinstance(tail_schema, dict):
+                tail_type = schema_to_python_type(
+                    tail_schema, enums_as_literals=enums_as_literals
+                )
+                item_types.append(f"*tuple[{tail_type}, ...]")
             return f"tuple[{', '.join(item_types)}]"
 
     # allOf → inheritance / merged model

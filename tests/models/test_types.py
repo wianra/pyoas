@@ -227,6 +227,23 @@ def test_prefix_items_single_element() -> None:
     assert schema_to_python_type(schema) == "tuple[float]"
 
 
+def test_prefix_items_with_tail_items_produces_variadic_tuple() -> None:
+    schema = {
+        "type": "array",
+        "prefixItems": [{"type": "string"}, {"type": "integer"}],
+        "items": {"type": "boolean"},
+    }
+    assert schema_to_python_type(schema) == "tuple[str, int, *tuple[bool, ...]]"
+
+
+def test_prefix_items_single_with_tail_items() -> None:
+    schema = {
+        "prefixItems": [{"type": "number"}],
+        "items": {"type": "string"},
+    }
+    assert schema_to_python_type(schema) == "tuple[float, *tuple[str, ...]]"
+
+
 def test_not_keyword_returns_any_with_warning() -> None:
     import warnings
 
