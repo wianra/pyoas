@@ -554,3 +554,56 @@ def test_body_param_has_annotated_body_wrapper() -> None:
     assert body["python_type"].startswith("Annotated[")
     # After stripping (as done in scaffold.py service context):
     assert _annotated_base_type(body["python_type"]) == "dict[str, Any]"
+
+
+def test_text_plain_generates_str_body() -> None:
+    operation = {
+        "requestBody": {
+            "required": True,
+            "content": {"text/plain": {"schema": {"type": "string"}}},
+        },
+        "responses": {},
+    }
+    params = build_function_params(operation)
+    assert len(params) == 1
+    p = params[0]
+    assert p["name"] == "body"
+    assert p["python_type"] == "Annotated[str, Body()]"
+    assert p["fastapi_class"] == "Body"
+    assert p["required"] is True
+    assert "TODO" not in (p["description"] or "")
+
+
+def test_octet_stream_generates_bytes_body_no_todo() -> None:
+    operation = {
+        "requestBody": {
+            "required": False,
+            "content": {
+                "application/octet-stream": {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        },
+        "responses": {},
+    }
+    params = build_function_params(operation)
+    assert len(params) == 1
+    p = params[0]
+    assert p["python_type"] == "Annotated[bytes, Body()]"
+    assert "TODO" not in (p["description"] or "")
+    assert p["required"] is False
+
+
+def test_unknown_content_type_fallback_has_todo() -> None:
+    operation = {
+        "requestBody": {
+            "required": True,
+            "content": {"application/xml": {"schema": {}}},
+        },
+        "responses": {},
+    }
+    params = build_function_params(operation)
+    assert len(params) == 1
+    p = params[0]
+    assert p["python_type"] == "Annotated[bytes, Body()]"
+    assert "TODO" in (p["description"] or "")

@@ -25,6 +25,16 @@ _LOCATION_CLASS: dict[str, str] = {
     "cookie": "Cookie",
 }
 
+# Content-type → Python body type for known non-JSON, non-form content types.
+# Types in this map are emitted without a TODO comment.
+_CONTENT_TYPE_BODY_MAP: dict[str, str] = {
+    "text/plain": "str",
+    "text/html": "str",
+    "text/csv": "str",
+    "application/octet-stream": "bytes",
+    "application/pdf": "bytes",
+}
+
 
 def _annotated_base_type(py_type: str) -> str:
     """Strip ``Annotated[T, ...]`` wrapper and return ``T``, or return *py_type* unchanged."""
@@ -359,21 +369,27 @@ def build_function_params(
                             }
                         )
             else:
-                # Unrecognized content type (e.g. text/plain, application/xml, image/*) —
-                # emit bytes placeholder so the endpoint compiles and handles the body.
+                # Content type not handled above (e.g. text/plain, application/xml, image/*).
+                # Map known types to their Python equivalents; fall back to bytes with a TODO.
                 unknown_type = next(
                     (ct for ct in content if ct != "application/json"), None
                 )
                 if unknown_type:
+                    mapped = _CONTENT_TYPE_BODY_MAP.get(unknown_type, "bytes")
+                    description = (
+                        None
+                        if unknown_type in _CONTENT_TYPE_BODY_MAP
+                        else f"# TODO: {unknown_type} request body — map to appropriate type"
+                    )
                     params.append(
                         {
                             "name": "body",
-                            "python_type": "Annotated[bytes, Body()]",
+                            "python_type": f"Annotated[{mapped}, Body()]",
                             "location": "body",
                             "required": body.get("required", False),
                             "default": None,
                             "default_repr": None,
-                            "description": f"# TODO: {unknown_type} request body — map to appropriate type",
+                            "description": description,
                             "alias": "body",
                             "fastapi_class": "Body",
                             "constraints": {},
