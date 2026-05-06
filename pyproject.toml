@@ -1,6 +1,6 @@
 [project]
 name = "pyoas"
-version = "0.1.0"
+version = "0.1.1"
 description = "Generate Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -39,6 +39,7 @@ dev = [
     "httpx>=0.27",
     "mkdocs-material>=9.7.6",
     "pytest-cov>=7.1.0",
+    "commitizen>=4.15.1",
 ]
 
 [tool.ruff]
@@ -69,3 +70,9 @@ source = ["src/pyoas"]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.commitizen]
+version = "0.1.1"
+version_files = ["pyproject.toml:^version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
