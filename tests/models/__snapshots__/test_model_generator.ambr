@@ -92,7 +92,7 @@
   from __future__ import annotations
   
   from typing import Annotated, Literal
-  from pydantic import BaseModel, ConfigDict, Field
+  from pydantic import BaseModel, ConfigDict, Field, Discriminator, Tag
   
   
   class ClickEvent(BaseModel):
@@ -117,7 +117,7 @@
       key: str = Field(default=...)
       modifiers: list[Literal["shift", "ctrl", "alt", "meta"]] | None = Field(default=None)
   
-  Event = Annotated[ClickEvent | KeyboardEvent, Field(discriminator="type")]
+  Event = Annotated[Annotated[ClickEvent, Tag("click")] | Annotated[KeyboardEvent, Tag("keyboard")], Discriminator("type")]
   
   
   '''

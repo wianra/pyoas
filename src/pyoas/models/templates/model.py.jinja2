@@ -18,7 +18,8 @@ from .shared import {{ name }}
 {% endfor %}
 
 {% endif %}
-from pydantic import BaseModel, ConfigDict, Field
+{% set _pydantic_extras = ", Discriminator, Tag" if needs_tag_discriminator else "" %}
+from pydantic import BaseModel, ConfigDict, Field{{ _pydantic_extras }}
 {% if type_vars %}
 
 {% for tv in type_vars %}

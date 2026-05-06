@@ -102,6 +102,7 @@ def _build_models_context(
     needs_any = False
     needs_literal = False
     needs_annotated = False
+    needs_tag_discriminator = False
     needs_generic = any(rs.get("is_generic") for rs in rendered_schemas)
     needs_str_enum = any(
         rs.get("is_enum_class") and rs.get("enum_type") == "StrEnum"
@@ -121,6 +122,8 @@ def _build_models_context(
                 needs_literal = True
             if "Annotated[" in alias_type:
                 needs_annotated = True
+            if "Tag(" in alias_type:
+                needs_tag_discriminator = True
             for imp in required_imports(alias_type):
                 all_imports.add(imp)
         else:
@@ -133,6 +136,8 @@ def _build_models_context(
                     needs_literal = True
                 if f["constraints"] or "Annotated[" in f["python_type"]:
                     needs_annotated = True
+                if "Tag(" in f["python_type"]:
+                    needs_tag_discriminator = True
 
     # Compute cross-module imports: shared schemas and generic bases referenced
     # by this tag's models.
@@ -178,6 +183,7 @@ def _build_models_context(
         "needs_any": needs_any,
         "needs_literal": needs_literal,
         "needs_annotated": needs_annotated,
+        "needs_tag_discriminator": needs_tag_discriminator,
         "needs_generic": needs_generic,
         "needs_str_enum": needs_str_enum,
         "needs_int_enum": needs_int_enum,
