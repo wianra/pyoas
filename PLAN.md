@@ -222,10 +222,10 @@ scopes, making it impossible to implement RBAC from the generated code alone.
 **Files touched:** `fastapi/generator.py`, `fastapi/deps_scaffold.py`,
 `fastapi/templates/router.py.jinja2`, `fastapi/templates/dependency_auth.py.jinja2`.
 
-- [ ] Collect scopes per operation in generator
-- [ ] Router template scope comments
-- [ ] Auth stub scope parameter
-- [ ] Tests with `tests/fixtures/secured.yaml`
+- [x] Collect scopes per operation in generator
+- [x] Router template scope comments
+- [x] Auth stub scope parameter
+- [x] Tests with `tests/fixtures/secured_scoped.yaml`
 
 ---
 
@@ -248,10 +248,10 @@ Pydantic v2 does not serialize `set` to JSON by default (it raises a
 **Files touched:** `models/types.py`, `models/templates/model.py.jinja2`,
 `core/config.py`.
 
-- [ ] Config flag
-- [ ] Type mapper update
-- [ ] Template serializer handling
-- [ ] Test with `uniqueItems` fixture
+- [x] Config flag
+- [x] Type mapper update
+- [x] Template serializer handling
+- [x] Test with `uniqueItems` fixture
 
 ---
 
@@ -271,9 +271,9 @@ If so, append `Unpack[tuple[items_type, ...]]` or the simpler
 
 **Files touched:** `models/types.py`.
 
-- [ ] Detect `prefixItems + items` combo
-- [ ] Emit variadic tuple annotation
-- [ ] Test case
+- [x] Detect `prefixItems + items` combo
+- [x] Emit variadic tuple annotation
+- [x] Test case
 
 ---
 
