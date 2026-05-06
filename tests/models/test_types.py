@@ -100,6 +100,95 @@ def test_allof_single_ref_unwraps() -> None:
     assert result == "Animal"
 
 
+def test_allof_single_ref_with_inline_returns_ref_name() -> None:
+    """allOf with one $ref plus inline additive properties → just the $ref name."""
+    resolved_animal = {"type": "object", "properties": {"id": {"type": "integer"}}}
+    resolved_inline = {"type": "object", "properties": {"breed": {"type": "string"}}}
+    schema = {"allOf": [resolved_animal, resolved_inline]}
+    raw_schema = {
+        "allOf": [
+            {"$ref": "#/components/schemas/Animal"},
+            {"type": "object", "properties": {"breed": {"type": "string"}}},
+        ]
+    }
+    result = schema_to_python_type(schema, raw_schema=raw_schema)
+    assert result == "Animal"
+
+
+def test_allof_inline_objects_only_returns_dict() -> None:
+    """allOf with zero $refs and all object schemas → dict[str, Any]."""
+    resolved_a = {"type": "object", "properties": {"a": {"type": "string"}}}
+    resolved_b = {"type": "object", "properties": {"b": {"type": "integer"}}}
+    schema = {"allOf": [resolved_a, resolved_b]}
+    raw_schema = {
+        "allOf": [
+            {"type": "object", "properties": {"a": {"type": "string"}}},
+            {"type": "object", "properties": {"b": {"type": "integer"}}},
+        ]
+    }
+    result = schema_to_python_type(schema, raw_schema=raw_schema)
+    assert result == "dict[str, Any]"
+
+
+def test_discriminator_mapping_emits_tag_discriminator() -> None:
+    """discriminator with mapping → Annotated[... Tag ..., Discriminator(...)]."""
+    schema = {
+        "oneOf": [
+            {
+                "type": "object",
+                "properties": {"type": {"type": "string", "enum": ["click"]}},
+            },
+            {
+                "type": "object",
+                "properties": {"type": {"type": "string", "enum": ["keyboard"]}},
+            },
+        ],
+        "discriminator": {
+            "propertyName": "type",
+            "mapping": {
+                "click": "#/components/schemas/ClickEvent",
+                "keyboard": "#/components/schemas/KeyboardEvent",
+            },
+        },
+    }
+    raw_schema = {
+        "oneOf": [
+            {"$ref": "#/components/schemas/ClickEvent"},
+            {"$ref": "#/components/schemas/KeyboardEvent"},
+        ],
+        "discriminator": {
+            "propertyName": "type",
+            "mapping": {
+                "click": "#/components/schemas/ClickEvent",
+                "keyboard": "#/components/schemas/KeyboardEvent",
+            },
+        },
+    }
+    result = schema_to_python_type(schema, raw_schema=raw_schema)
+    assert 'Tag("click")' in result
+    assert 'Tag("keyboard")' in result
+    assert 'Discriminator("type")' in result
+    assert "ClickEvent" in result
+    assert "KeyboardEvent" in result
+
+
+def test_discriminator_no_mapping_keeps_field_discriminator() -> None:
+    """discriminator without mapping → Annotated[A | B, Field(discriminator=...)]."""
+    schema = {
+        "oneOf": [{"type": "object"}, {"type": "object"}],
+        "discriminator": {"propertyName": "kind"},
+    }
+    raw_schema = {
+        "oneOf": [
+            {"$ref": "#/components/schemas/CatSchema"},
+            {"$ref": "#/components/schemas/DogSchema"},
+        ],
+        "discriminator": {"propertyName": "kind"},
+    }
+    result = schema_to_python_type(schema, raw_schema=raw_schema)
+    assert result == 'Annotated[CatSchema | DogSchema, Field(discriminator="kind")]'
+
+
 def test_required_imports_datetime() -> None:
     imports = required_imports("datetime.datetime")
     assert "import datetime" in imports

@@ -154,6 +154,27 @@ def _base_type(
     # allOf → inheritance / merged model
     if "allOf" in schema:
         raw_items = (raw_schema or {}).get("allOf", [])
+        ref_items = [s for s in raw_items if isinstance(s, dict) and "$ref" in s]
+
+        # Single $ref (possibly with inline additive properties) → just the ref name.
+        # schema_renderer handles merged properties at the model-class level.
+        if len(ref_items) == 1:
+            ref = ref_items[0]["$ref"]
+            if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+                return ref.split("/")[-1]
+
+        # Zero $refs, all object schemas → pure property merge, use dict[str, Any].
+        if (
+            not ref_items
+            and raw_items
+            and all(
+                isinstance(s, dict) and (s.get("type") == "object" or "properties" in s)
+                for s in raw_items
+            )
+        ):
+            return "dict[str, Any]"
+
+        # Multiple $refs or primitive allOf → union (existing behaviour).
         parts = []
         for i, s in enumerate(schema["allOf"]):
             raw_s = raw_items[i] if i < len(raw_items) else None
@@ -181,6 +202,15 @@ def _base_type(
 
             if "discriminator" in schema:
                 discriminator_prop = schema["discriminator"]["propertyName"]
+                mapping = schema["discriminator"].get("mapping")
+                if mapping:
+                    # Use Pydantic v2 Tag+Discriminator for explicit value→schema mappings.
+                    # This works even when discriminator values differ from schema names.
+                    tagged = " | ".join(
+                        f'Annotated[{ref.split("/")[-1]}, Tag("{value}")]'
+                        for value, ref in mapping.items()
+                    )
+                    return f'Annotated[{tagged}, Discriminator("{discriminator_prop}")]'
                 union_str = (
                     " | ".join(parts)
                     if len(parts) > 1

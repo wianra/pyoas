@@ -67,10 +67,10 @@ whose type is `allOf: [{$ref: Animal}, {properties: ...}]`) it produces `Animal 
 **Tests:** add test cases in `tests/models/test_types.py` covering
 `allOf + $ref + inline`, `allOf + two $refs`, `allOf + inline only`.
 
-- [ ] Implement single-ref `allOf` shortcut
-- [ ] Keep multi-ref union
-- [ ] Inline-only fallback
-- [ ] Test cases
+- [x] Implement single-ref `allOf` shortcut
+- [x] Keep multi-ref union
+- [x] Inline-only fallback
+- [x] Test cases
 
 ---
 
@@ -137,10 +137,10 @@ non-default values, Pydantic's discriminated union will fail to match at runtime
 **Tests:** add `tests/fixtures/discriminated_mapping.yaml` with explicit mapping;
 snapshot test.
 
-- [ ] Read `discriminator.mapping` in type mapper
-- [ ] Emit correct annotated union
-- [ ] Template context update
-- [ ] Fixture + snapshot test
+- [x] Read `discriminator.mapping` in type mapper
+- [x] Emit correct annotated union
+- [x] Template context update
+- [x] Fixture + snapshot test (updated existing `discriminated.yaml` snapshot)
 
 ---
 
