@@ -1,10 +1,10 @@
 # pyoas Development Roadmap
 
-_Updated: 2026-05-05_
+_Updated: 2026-05-06_
 
 ## Project State
 
-Architecture complete, production-quality implementation. 310 tests, all green. Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion.
+Architecture complete, production-quality implementation. 349 tests, all green. Full pipeline implemented and snapshot-tested: OpenAPI parse → `$ref` resolve → tag extraction → schema analysis → Jinja2 render → ruff format. `DependencyScaffolder` complete (detects bearer/basic/apiKey/OAuth2 and writes typed auth stubs). `pyoas --version` flag added; all scaffolders return structured `ScaffoldResult`; `generate` prints a clean aligned summary table on completion. `ParsedSpec` value object introduced — `generate` now loads and resolves the spec once and shares it across both generators. Integration test suite scaffolded in `tests/integration/` (18 tests, skipped by default; `--run-integration` + `download_specs.py` to run against GitHub/Stripe/OpenAI/Kubernetes).
 
 ---
 
@@ -100,13 +100,11 @@ Implementation: extract the drift-detection logic from `ServiceScaffolder` into 
 
 ---
 
-### 10. Real-world spec integration tests
+### 10. ~~Real-world spec integration tests~~ ✓ Done
 
 **Effort:** Medium | **Value:** High edge-case discovery
 
-Hand-crafted fixtures miss real-world patterns. Add `tests/integration/` (marked `@pytest.mark.integration`, skipped by default in CI unless `--run-integration` is passed) running against published specs: GitHub REST API, Stripe, OpenAI, Kubernetes. These surface discriminated union edge cases, `x-` extensions, large `allOf` chains, hundreds of tags, and implicit webhook patterns.
-
-Tie to the shared `ParsedSpec` refactor (see Backlog) before running against Kubernetes — parsing twice per `generate` on a 10k-line spec is slow.
+`tests/integration/` added with `@pytest.mark.integration` (18 tests, skipped by default). `download_specs.py` fetches GitHub REST API, Stripe, OpenAI, and Kubernetes specs on demand. Each spec has its own test class with smoke + structural assertions (no snapshots — upstream specs change too often). `ParsedSpec(raw, resolved, path)` frozen dataclass introduced in `pyoas.core`; `generate` command now loads and resolves the spec once and passes it to both `ModelGenerator` and `RouterGenerator`, halving parse time for large specs. Shared `ParsedSpec` backlog item resolved as part of this push.
 
 ---
 
@@ -149,7 +147,7 @@ A `pyoas scaffold middleware` command that generates FastAPI middleware validati
 
 | Item | Notes |
 |---|---|
-| Shared `ParsedSpec` in `generate` | `ModelGenerator` and `RouterGenerator` each independently load/resolve the spec; a shared `ParsedSpec(raw, resolved)` value object would halve parse time for large specs — prerequisite before real-world integration tests |
+| ~~Shared `ParsedSpec` in `generate`~~ | Done — shipped as part of push #10 |
 | `services_pattern` test coverage | `none \| repository \| domain` wired to the Claude skill template but has no dedicated test |
 | Watch mode tests | Hard to test deterministically; mock `watchdog.Observer` instead of hitting the filesystem event loop |
 | OAS 3.1 `anyOf` nullable edge case | Verify `anyOf: [{$ref: X}, {type: "null"}]` is correctly rendered as `Optional[X]` across all nested/resolved cases; add a 3.1-specific nullable fixture |

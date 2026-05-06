@@ -216,13 +216,20 @@ def generate(
             )
         raise typer.Exit(1)
 
+    from pyoas.core.parsed_spec import ParsedSpec
+
     cfg = _load_cfg(config)
     tag_filter = _tag_filter(tags)
+    parsed = ParsedSpec.from_config(cfg)
 
     model_gen = ModelGenerator(cfg)  # type: ignore[possibly-undefined]
-    model_written = model_gen.generate(tag_filter=tag_filter, clean=clean)
+    model_written = model_gen.generate(
+        tag_filter=tag_filter, clean=clean, parsed_spec=parsed
+    )
     router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
-    router_written = router_gen.generate(tag_filter=tag_filter, clean=clean)
+    router_written = router_gen.generate(
+        tag_filter=tag_filter, clean=clean, parsed_spec=parsed
+    )
     for path in model_written + router_written:
         typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
 

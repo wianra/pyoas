@@ -62,6 +62,7 @@ exclude = [
 testpaths = ["tests"]
 addopts = "--import-mode=importlib --cov=src/pyoas --cov-report=term-missing"
 filterwarnings = ["ignore::pytest.PytestCollectionWarning"]
+markers = ["integration: marks integration tests against real-world specs (use --run-integration to enable)"]
 
 [tool.coverage.run]
 source = ["src/pyoas"]

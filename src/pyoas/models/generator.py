@@ -17,9 +17,8 @@ from pyoas.core.analysis import (
     detect_generic_groups_global,
 )
 from pyoas.core.config import Config
-from pyoas.core.parser import SpecParser
+from pyoas.core.parsed_spec import ParsedSpec
 from pyoas.core.renderer import Renderer
-from pyoas.core.resolver import resolve_refs
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     ensure_intermediate_inits,
@@ -44,19 +43,28 @@ class ModelGenerator:
         self.unreferenced_count: int = 0
 
     def generate(
-        self, tag_filter: list[str] | None = None, clean: bool = False
+        self,
+        tag_filter: list[str] | None = None,
+        clean: bool = False,
+        *,
+        parsed_spec: ParsedSpec | None = None,
     ) -> list[Path]:
         """
         Generate Pydantic v2 models for all tags (or a subset via ``tag_filter``).
 
         All files under the configured output directory are fully overwritten.
         If ``clean`` is True, the output directory is purged before generation.
+        Pass a pre-built ``ParsedSpec`` via *parsed_spec* to avoid loading and
+        resolving the spec file twice when running ``generate`` (which calls both
+        ModelGenerator and RouterGenerator).
         Returns the list of files written.
         """
         cfg = self._config
         spec_hash = spec_hash_of_file(cfg.spec)
-        spec_raw = SpecParser(cfg.spec).load()
-        spec = resolve_refs(spec_raw, cfg.spec)
+        if parsed_spec is None:
+            parsed_spec = ParsedSpec.from_config(cfg)
+        spec_raw: dict = parsed_spec.raw
+        spec: dict = parsed_spec.resolved
 
         if spec_raw.get("webhooks") and not cfg.webhooks.generate:
             typer.echo(

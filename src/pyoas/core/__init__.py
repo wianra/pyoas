@@ -8,6 +8,7 @@ from .analysis import (
     inline_schema_name,
 )
 from .config import Config, load_config
+from .parsed_spec import ParsedSpec
 from .parser import SpecParser
 from .renderer import Renderer
 from .resolver import resolve_refs
@@ -23,6 +24,7 @@ __all__ = [
     "inline_schema_name",
     "Config",
     "load_config",
+    "ParsedSpec",
     "SpecParser",
     "resolve_refs",
     "extract_tags",
