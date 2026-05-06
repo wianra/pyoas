@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyoas.core.analysis import _GenericGroup
+from pyoas.core.analysis import _GenericGroup, has_circular_refs
 from pyoas.core.config import Config
 
 from .schema_renderer import _render_generic_base_schema, _render_schema
@@ -162,6 +162,15 @@ def _build_models_context(
                         referenced_shared.add(base_name)
         shared_imports = sorted(referenced_shared)
 
+    # Detect circular references using the raw schemas available in this tag.
+    # Build a mini components_schemas dict so _find_referenced_schemas can follow $refs.
+    mini_components = {
+        s["name"]: s["raw_schema"]
+        for s in schemas
+        if s.get("raw_schema") and not s.get("_is_generic_base")
+    }
+    has_circular = has_circular_refs(list(mini_components), mini_components)
+
     return {
         "tag": tag,
         "schemas": rendered_schemas,
@@ -175,4 +184,5 @@ def _build_models_context(
         "type_vars": ["T"] if needs_generic else [],
         "model_config": config.model_config,
         "shared_imports": shared_imports,
+        "has_circular": has_circular,
     }

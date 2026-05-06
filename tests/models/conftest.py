@@ -73,3 +73,8 @@ def webhooks_31(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def allof_inheritance(fixtures_dir: Path) -> Path:
     return fixtures_dir / "allof_inheritance.yaml"
+
+
+@pytest.fixture
+def circular_ref(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "circular_ref.yaml"

@@ -832,3 +832,17 @@ def test_allof_child_with_shared_base_generates_import(
 
         animals_src = (Path(tmp) / "animals.py").read_text()
         assert "from .shared import Animal" in animals_src
+
+
+def test_generate_circular_ref(circular_ref: Path, snapshot: SnapshotAssertion) -> None:
+    """Self-referencing schemas generate valid importable Python."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(circular_ref), tmp)
+        ModelGenerator(cfg).generate()
+
+        output = Path(tmp)
+        assert (output / "trees.py").exists()
+        src = _read(output / "trees.py")
+        assert "from __future__ import annotations" in src
+        assert "class TreeNode" in src
+        assert src == snapshot(name="circular_ref_trees")

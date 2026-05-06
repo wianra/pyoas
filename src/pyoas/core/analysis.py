@@ -113,6 +113,26 @@ def _find_referenced_schemas(
     return names
 
 
+def has_circular_refs(
+    schema_names: list[str],
+    components_schemas: dict[str, Any],
+) -> bool:
+    """Return True if any schema in *schema_names* references itself transitively.
+
+    Uses ``_find_referenced_schemas`` with a fresh ``_visited`` set per schema
+    so cross-schema cycles are also detected correctly.
+    """
+    for name in schema_names:
+        if name not in components_schemas:
+            continue
+        referenced = _find_referenced_schemas(
+            components_schemas[name], components_schemas
+        )
+        if name in referenced:
+            return True
+    return False
+
+
 def find_split_schema_names(spec_raw: dict[str, Any]) -> set[str]:
     """Return schema names that will be split into Read/Write variants.
 
