@@ -92,9 +92,9 @@ class {{ op.class_name }}:
 {% endfor %}
 {% for ipt in op.invalid_path_tests %}
 
-    def {{ ipt.test_name }}(self, client: TestClient) -> None:
+    def {{ ipt.test_name }}(self, {% if has_services %}client_with_mock{% else %}client{% endif %}: TestClient) -> None:
         """Verify validation rejects {{ ipt.type_description }} path parameter (expects 422)."""
-        response = client.{{ op.method }}("{{ ipt.invalid_path }}")
+        response = {% if has_services %}client_with_mock{% else %}client{% endif %}.{{ op.method }}("{{ ipt.invalid_path }}")
         assert response.status_code == 422
 {% endfor %}
 {% for et in op.enum_violation_tests %}

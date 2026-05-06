@@ -1041,14 +1041,15 @@ def _render_class_stubs(
 
         for ipt in op["invalid_path_tests"]:
             lines.append("")
+            fixture = "client_with_mock" if has_services else "client"
             lines.append(
-                f"    def {ipt['test_name']}(self, client: TestClient) -> None:"
+                f"    def {ipt['test_name']}(self, {fixture}: TestClient) -> None:"
             )
             lines.append(
                 f'        """Verify validation rejects {ipt["type_description"]} path parameter (expects 422)."""'
             )
             lines.append(
-                f'        response = client.{op["method"]}("{ipt["invalid_path"]}")'
+                f'        response = {fixture}.{op["method"]}("{ipt["invalid_path"]}")'
             )
             lines.append("        assert response.status_code == 422")
 

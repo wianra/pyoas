@@ -1,8 +1,8 @@
 site_name: pyoas
 site_description: Generate Pydantic v2 models and FastAPI routers from OpenAPI 3.0/3.1 specs
-site_url: https://wianra.github.io/specgen/
-repo_url: https://github.com/wianra/specgen
-repo_name: wianra/specgen
+site_url: https://wianra.github.io/pyoas/
+repo_url: https://github.com/wianra/pyoas
+repo_name: wianra/pyoas
 edit_uri: edit/main/docs/
 
 theme:

@@ -93,3 +93,19 @@ uv run mypy src/
 ## Test Fixtures
 
 Shared OpenAPI specs live in `tests/fixtures/` and are referenced by all test modules via `conftest.py`.
+
+## Releases
+
+Versioning is managed by Commitizen (`uv run cz bump`). **Always use conventional commit messages** so the version bump is determined automatically:
+
+| Prefix | Bump |
+|---|---|
+| `fix:` | patch — `0.2.0 → 0.2.1` |
+| `feat:` | minor — `0.2.0 → 0.3.0` |
+| `feat!:` or `BREAKING CHANGE:` footer | major — `0.2.0 → 1.0.0` |
+
+To release:
+```bash
+uv run cz bump          # bumps pyproject.toml, tags, updates CHANGELOG.md
+git push origin main --follow-tags   # triggers publish.yml → PyPI
+```

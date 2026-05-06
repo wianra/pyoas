@@ -218,7 +218,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /openapi.yaml
-/specgen.yaml
+/pyoas.yaml
 
 # Integration test spec files (downloaded on demand)
 tests/integration/specs/

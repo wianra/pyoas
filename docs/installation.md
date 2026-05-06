@@ -44,8 +44,8 @@ pyoas --help
 To work on pyoas itself, clone the repo and install with all extras:
 
 ```shell
-git clone https://github.com/wianra/specgen.git
-cd specgen
+git clone https://github.com/wianra/pyoas.git
+cd pyoas
 uv sync --extra fastapi --extra claude
 ```
 
