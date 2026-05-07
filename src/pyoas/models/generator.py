@@ -4,6 +4,8 @@ ModelGenerator — orchestrates Pydantic v2 model generation from an OpenAPI spe
 
 from __future__ import annotations
 
+import json as _json
+import re as _re
 import shutil
 import time
 from collections.abc import Callable
@@ -18,6 +20,7 @@ from pyoas.core.analysis import (
     collect_inline_schemas,
     detect_generic_groups_global,
 )
+from pyoas.core.cache import GenerationCache, compute_config_hash, compute_tag_hash
 from pyoas.core.config import Config
 from pyoas.core.parsed_spec import ParsedSpec
 from pyoas.core.renderer import Renderer
@@ -38,6 +41,13 @@ from .classifier import (
 from .context import _build_models_context
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
+
+
+def _read_model_names_from_file(path: Path) -> list[str]:
+    """Extract class names from an already-written model file (used on cache hit)."""
+    if not path.exists():
+        return []
+    return _re.findall(r"^class (\w+)", path.read_text(encoding="utf-8"), _re.MULTILINE)
 
 
 class ModelGenerator:
@@ -112,6 +122,14 @@ class ModelGenerator:
 
         output_root.mkdir(parents=True, exist_ok=True)
 
+        use_cache = not clean
+        cache = (
+            GenerationCache.load(output_root / ".pyoas_cache.json")
+            if use_cache
+            else GenerationCache(output_root / ".pyoas_cache.json")
+        )
+        config_hash = compute_config_hash(cfg) if use_cache else ""
+
         raw_components_schemas = spec_raw.get("components", {}).get("schemas", {})
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw)
         request_only_names = _find_request_only_schema_names(spec_raw)
@@ -165,6 +183,27 @@ class ModelGenerator:
                 + tag_schemas
                 + inline_by_tag.get(tag, [])
             )
+            _tag_hash = ""
+            if use_cache:
+                _tag_schema_names = [s["name"] for s in all_schemas]
+                _tag_raw_schemas = {
+                    name: raw_components_schemas[name]
+                    for name in _tag_schema_names
+                    if name in raw_components_schemas
+                }
+                _content_json = _json.dumps(
+                    {"tag": tag, "schemas": _tag_raw_schemas},
+                    sort_keys=True,
+                    default=str,
+                )
+                _tag_hash = compute_tag_hash(tag, _content_json, config_hash)
+                _out_file = output_root / f"{tag_to_dirname(tag)}.py"
+                if cache.is_current(tag, _tag_hash) and _out_file.exists():
+                    if progress_callback:
+                        progress_callback(f"[models]  {tag} (unchanged, skipped)")
+                    tag_model_names[tag] = _read_model_names_from_file(_out_file)
+                    written.append(_out_file)
+                    continue
             _t0 = time.perf_counter()
             tag_model_names[tag] = self._write_tag(
                 tag,
@@ -178,6 +217,8 @@ class ModelGenerator:
                 shared_defs_names=_shared_defs_names,
             )
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            if use_cache:
+                cache.update(tag, _tag_hash)
             if progress_callback:
                 msg = f"[models]  {tag} ({len(all_schemas)} schemas)"
                 if verbose:
@@ -225,17 +266,42 @@ class ModelGenerator:
             _make_base_entry(g) for g in generic_groups.values() if g.home_tag is None
         ]
         if shared_schemas or shared_base_entries:
-            tag_model_names["shared"] = self._write_tag(
-                "shared",
-                shared_base_entries + shared_schemas,
-                renderer,
-                output_root,
-                schema_tag_map,
-                request_only_names,
-                generic_groups,
-                spec_hash=spec_hash,
-            )
-            written.append(output_root / "shared.py")
+            _shared_all = shared_base_entries + shared_schemas
+            _write_shared = True
+            _shared_hash = ""
+            if use_cache:
+                _shared_raw_schemas = {
+                    s["name"]: raw_components_schemas[s["name"]]
+                    for s in _shared_all
+                    if s["name"] in raw_components_schemas
+                }
+                _shared_content = _json.dumps(
+                    {"tag": "shared", "schemas": _shared_raw_schemas},
+                    sort_keys=True,
+                    default=str,
+                )
+                _shared_hash = compute_tag_hash("shared", _shared_content, config_hash)
+                _shared_file = output_root / "shared.py"
+                if cache.is_current("shared", _shared_hash) and _shared_file.exists():
+                    tag_model_names["shared"] = _read_model_names_from_file(
+                        _shared_file
+                    )
+                    written.append(_shared_file)
+                    _write_shared = False
+            if _write_shared:
+                tag_model_names["shared"] = self._write_tag(
+                    "shared",
+                    _shared_all,
+                    renderer,
+                    output_root,
+                    schema_tag_map,
+                    request_only_names,
+                    generic_groups,
+                    spec_hash=spec_hash,
+                )
+                written.append(output_root / "shared.py")
+                if use_cache:
+                    cache.update("shared", _shared_hash)
 
         has_shared = bool(shared_schemas or shared_base_entries)
         all_tags = list(grouped.keys()) + (["shared"] if has_shared else [])
@@ -258,6 +324,9 @@ class ModelGenerator:
             cfg.output.source_root,
             project_root=Path(cfg.spec).parent,
         )
+
+        if use_cache:
+            cache.save()
 
         if cfg.format.enabled:
             format_output(output_root)
