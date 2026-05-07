@@ -1,3 +1,10 @@
+## v0.3.0 (2026-05-07)
+
+### Feat
+
+- **example**: add petstore example project with CI sync check
+- add pyoas fix command to auto-correct common spec issues
+
 ## v0.2.0 (2026-05-07)
 
 ### Feat
