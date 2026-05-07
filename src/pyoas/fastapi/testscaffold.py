@@ -366,6 +366,7 @@ class TestScaffolder:
         output_root.mkdir(parents=True, exist_ok=True)
 
         all_tag_models: list[dict[str, Any]] = []
+        any_has_auth_dep: bool = False
 
         for tag, operations in grouped.items():
             raw_operations = grouped_raw.get(tag, [])
@@ -379,6 +380,8 @@ class TestScaffolder:
             result.wrote += tag_result.wrote
             result.appended_items += tag_result.appended_items
             result.appended_files.extend(tag_result.appended_files)
+            if context.get("has_auth_dep"):
+                any_has_auth_dep = True
             response_models: list[dict[str, Any]] = context["response_models"]
             if response_models:
                 all_tag_models.append(
@@ -433,6 +436,8 @@ class TestScaffolder:
             renderer,
             output_root,
             models_import_path,
+            has_auth_dep=any_has_auth_dep,
+            auth_dep_import_path=cfg.dependencies.import_path or None,
         )
         result.wrote += conftest_result.wrote
         return result
@@ -494,10 +499,12 @@ class TestScaffolder:
         renderer: Renderer,
         output_root: Path,
         models_import_path: str,
+        has_auth_dep: bool = False,
+        auth_dep_import_path: str | None = None,
     ) -> ScaffoldResult:
         """Write or append conftest.py with model factory stubs."""
         conftest_result = ScaffoldResult()
-        if not factories:
+        if not factories and not has_auth_dep:
             return conftest_result
 
         conftest_file = output_root / "conftest.py"
@@ -505,6 +512,8 @@ class TestScaffolder:
             "factories": factories,
             "import_groups": import_groups,
             "models_import_path": models_import_path,
+            "has_auth_dep": has_auth_dep,
+            "auth_dep_import_path": auth_dep_import_path,
         }
 
         if not conftest_file.exists() or self._config.tests.overwrite:
@@ -521,6 +530,9 @@ class TestScaffolder:
         )
         existing_classes = set(
             re.findall(r"^class (\w+)\(", existing_src, re.MULTILINE)
+        )
+        has_existing_auth_fixture = bool(
+            re.search(r"^def auth_context\(", existing_src, re.MULTILINE)
         )
 
         # Warn about orphaned factories (exist in file but no longer in spec).
@@ -553,6 +565,28 @@ class TestScaffolder:
                     ]
                 )
 
+        if has_auth_dep and not has_existing_auth_fixture:
+            missing_imports: list[str] = []
+            if "import pytest" not in existing_src:
+                missing_imports.append("import pytest")
+            auth_import = f"from {auth_dep_import_path}.auth import AuthContext"
+            if auth_import not in existing_src:
+                missing_imports.append(auth_import)
+            auth_fixture_lines = [
+                "",
+                "",
+                "@pytest.fixture",
+                "def auth_context() -> AuthContext:",
+                '    """Return the AuthContext injected into generated test clients.',
+                "",
+                "    This file is scaffolded once and safe to edit.  Customize here to supply",
+                "    your application-specific context, e.g.:",
+                "        return AuthContext(operator_id=1, partner_id=42)",
+                '    """',
+                "    return AuthContext()",
+            ]
+            new_lines = missing_imports + auth_fixture_lines + new_lines
+
         if not new_lines:
             return conftest_result
 
@@ -561,7 +595,7 @@ class TestScaffolder:
         count = sum(1 for line in new_lines if line.startswith("def "))
         typer.echo(
             typer.style(
-                f"  added  {count} factory stub(s) to {conftest_file}",
+                f"  added  {count} stub(s) to {conftest_file}",
                 fg=typer.colors.GREEN,
             )
         )

@@ -1,12 +1,15 @@
 # Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
 from __future__ import annotations
 
+{% if factories %}
 from polyfactory.factories.pydantic_factory import ModelFactory
+{% endif %}
 {% for module, names in import_groups.items() %}{% if names %}
 from {{ models_import_path }}.{{ module }} import (
 {% for name in names %}    {{ name }},
 {% endfor %})
 {% endif %}{% endfor %}
+{% if factories %}
 {% for factory in factories %}
 
 class {{ factory.factory_class_name }}(ModelFactory):
@@ -18,3 +21,20 @@ def {{ factory.func_name }}(**overrides) -> {{ factory.type_str }}:
     """Minimal valid {{ factory.type_str }}. Override fields as needed."""
     return {{ factory.factory_class_name }}.build(**overrides)
 {% endfor %}
+{% endif %}
+{% if has_auth_dep %}
+
+import pytest
+from {{ auth_dep_import_path }}.auth import AuthContext
+
+
+@pytest.fixture
+def auth_context() -> AuthContext:
+    """Return the AuthContext injected into generated test clients.
+
+    This file is scaffolded once and safe to edit.  Customize here to supply
+    your application-specific context, e.g.:
+        return AuthContext(operator_id=1, partner_id=42)
+    """
+    return AuthContext()
+{% endif %}

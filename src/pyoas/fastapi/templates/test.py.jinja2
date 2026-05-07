@@ -22,11 +22,11 @@ from {{ conftest_import_path }} import {{ auto_impl_factories | join(", ") }}
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client({% if has_auth_dep %}auth_context: AuthContext{% endif %}) -> TestClient:
     app = FastAPI()
     app.include_router({{ tag_dirname }}_router)
 {% if has_auth_dep %}
-    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
+    app.dependency_overrides[get_auth_context] = lambda: auth_context
 {% endif %}
     return TestClient(app)
 {% if has_services %}
@@ -39,13 +39,13 @@ def mock_service() -> AsyncMock:
 
 
 @pytest.fixture
-def client_with_mock(mock_service: AsyncMock) -> TestClient:
+def client_with_mock(mock_service: AsyncMock{% if has_auth_dep %}, auth_context: AuthContext{% endif %}) -> TestClient:
     """TestClient with the service dependency wired to mock_service."""
     app = FastAPI()
     app.include_router({{ tag_dirname }}_router)
     app.dependency_overrides[{{ service_dep_fn }}] = lambda: mock_service
 {% if has_auth_dep %}
-    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
+    app.dependency_overrides[get_auth_context] = lambda: auth_context
 {% endif %}
     return TestClient(app)
 {% endif %}

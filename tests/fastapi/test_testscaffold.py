@@ -518,9 +518,11 @@ def test_auth_dep_mock_when_dependencies_configured(secured: Path) -> None:
             "from myapp.dependencies.auth import AuthContext, get_auth_context"
             in content
         )
+        # auth_context fixture param is injected — lambda references the fixture, not AuthContext()
         assert (
-            "dependency_overrides[get_auth_context] = lambda: AuthContext()" in content
+            "dependency_overrides[get_auth_context] = lambda: auth_context" in content
         )
+        assert "def client(auth_context: AuthContext)" in content
 
 
 def test_no_auth_dep_mock_when_dependencies_not_configured(secured: Path) -> None:
@@ -564,3 +566,68 @@ def test_bytes_response_mock_repr() -> None:
 
     assert _default_mock_return_repr("bytes") == 'b""'
     assert _default_mock_return_repr("bytes | None") == 'b""'
+
+
+def test_conftest_has_auth_context_fixture_when_secured(secured: Path) -> None:
+    """When operations have security and dependencies.import_path is set, conftest.py
+    must contain a standalone auth_context fixture that test clients can inject."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_deps(
+            str(secured), tests_output=tmp, dep_import_path="myapp.dependencies"
+        )
+        TestScaffolder(cfg).scaffold()
+
+        content = _read(Path(tmp) / "conftest.py")
+        assert "def auth_context() -> AuthContext:" in content
+        assert "return AuthContext()" in content
+        assert "from myapp.dependencies.auth import AuthContext" in content
+        assert "import pytest" in content
+
+
+def test_conftest_auth_context_fixture_idempotent(secured: Path) -> None:
+    """Running scaffold twice must not duplicate the auth_context fixture."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_deps(
+            str(secured), tests_output=tmp, dep_import_path="myapp.dependencies"
+        )
+        TestScaffolder(cfg).scaffold()
+        # Second run in append-only mode.
+        cfg2 = _make_config_with_deps(
+            str(secured), tests_output=tmp, dep_import_path="myapp.dependencies"
+        )
+        cfg2 = Config(
+            spec=str(secured),
+            output=OutputConfig(models="src/generated/models", routers=_ROUTERS_DIR),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            dependencies=DependenciesConfig(import_path="myapp.dependencies"),
+            tests=TestsConfig(generate=True, output=tmp, overwrite=False),
+        )
+        TestScaffolder(cfg2).scaffold()
+
+        content = _read(Path(tmp) / "conftest.py")
+        assert content.count("def auth_context(") == 1
+
+
+def test_conftest_auth_context_appended_to_existing_conftest(secured: Path) -> None:
+    """If conftest.py exists but lacks auth_context, it should be appended on next run."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # Pre-populate conftest without auth_context.
+        conftest_file = Path(tmp) / "conftest.py"
+        conftest_file.write_text(
+            "# Scaffolded by pyoas — safe to edit.\nfrom __future__ import annotations\n",
+            encoding="utf-8",
+        )
+        cfg = Config(
+            spec=str(secured),
+            output=OutputConfig(models="src/generated/models", routers=_ROUTERS_DIR),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            dependencies=DependenciesConfig(import_path="myapp.dependencies"),
+            tests=TestsConfig(generate=True, output=tmp, overwrite=False),
+        )
+        TestScaffolder(cfg).scaffold()
+
+        content = _read(conftest_file)
+        assert "def auth_context()" in content
+        assert "from myapp.dependencies.auth import AuthContext" in content
