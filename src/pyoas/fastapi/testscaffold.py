@@ -847,7 +847,15 @@ def _build_test_context(
             if not response_factory and response_type_str.strip() != "None"
             else None
         )
-        auto_implement_success = method in ("get", "delete") and has_services
+        _has_return_value = bool(response_factory or default_mock_return_repr)
+        _is_void = response_type_str.strip() == "None"
+        _body_available = not has_required_body or bool(not_found_body_repr)
+        auto_implement_success = (
+            has_services
+            and (_has_return_value or _is_void)
+            and _body_available
+            and method in ("get", "delete", "post", "put", "patch")
+        )
 
         test_ops.append(
             TestOperation(
@@ -1154,8 +1162,14 @@ def _render_class_stubs(
                 lines.append(
                     f"        mock_service.{op['function_name']}.return_value = {_effective_return}"
                 )
+            _nf_body = op.get("not_found_body_repr")
+            _body_arg_success = (
+                f", json={_nf_body}"
+                if op["method"] in ("post", "put", "patch") and _nf_body
+                else ""
+            )
             lines.append(
-                f'        response = client_with_mock.{op["method"]}("{op["filled_path"]}"{_params_arg})'
+                f'        response = client_with_mock.{op["method"]}("{op["filled_path"]}"{_body_arg_success}{_params_arg})'
             )
             lines.append(
                 f"        assert response.status_code == {success_status_code}"

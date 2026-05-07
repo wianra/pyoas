@@ -324,7 +324,12 @@ def test_success_uses_client_with_mock_when_services_configured(
         TestScaffolder(cfg).scaffold()
 
         content = _read(Path(tmp) / "test_pets.py")
-        assert "def test_success(self, client_with_mock: TestClient)" in content
+        # Auto-implemented test_success uses client_with_mock + mock_service.
+        assert (
+            "def test_success(self, client_with_mock: TestClient, mock_service: AsyncMock)"
+            in content
+        )
+        assert "def test_success(self, client: TestClient" not in content
 
 
 def test_skips_when_not_configured(petstore_30: Path, capsys) -> None:
@@ -631,3 +636,194 @@ def test_conftest_auth_context_appended_to_existing_conftest(secured: Path) -> N
         content = _read(conftest_file)
         assert "def auth_context()" in content
         assert "from myapp.dependencies.auth import AuthContext" in content
+
+
+# ---------------------------------------------------------------------------
+# Priority 1: POST/PUT/PATCH auto-implement
+# ---------------------------------------------------------------------------
+
+
+def test_post_auto_implements_success_with_services(no_tags: Path) -> None:
+    """POST /items (createItem) with services + derivable body → real test_success, no skip."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(no_tags), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        create_class = content.split("class TestCreateItem:")[1].split("\nclass ")[0]
+        assert 'pytest.skip("implement me")' not in create_class
+        assert "assert response.status_code == 201" in create_class
+        assert "mock_service.create_item.return_value" in create_class
+
+
+def test_post_auto_implement_includes_json_body(no_tags: Path) -> None:
+    """Auto-implemented POST test_success must include json= with the minimal body."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(no_tags), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        assert "json={'name': 'example'}" in content
+
+
+def test_post_no_auto_implement_without_services(no_tags: Path) -> None:
+    """POST without services must remain a skip stub."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(no_tags), tmp)
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        create_class = content.split("class TestCreateItem:")[1].split("\nclass ")[0]
+        assert 'pytest.skip("implement me")' in create_class
+
+
+def test_delete_with_204_auto_implements_without_mock_return(no_tags: Path) -> None:
+    """DELETE → 204 (_is_void=True) must auto-implement test_success without a mock return
+    value — just assert response.status_code == 204."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(no_tags), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        delete_class = content.split("class TestDeleteItem:")[1].split("\nclass ")[0]
+        assert 'pytest.skip("implement me")' not in delete_class
+        assert "assert response.status_code == 204" in delete_class
+        assert "mock_service.delete_item.return_value" not in delete_class
+
+
+# ---------------------------------------------------------------------------
+# tag_filter
+# ---------------------------------------------------------------------------
+
+
+def test_tag_filter_restricts_scaffolding(petstore_30: Path) -> None:
+    """scaffold(tag_filter=...) only creates test files for matching tags."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(petstore_30), tmp)
+        TestScaffolder(cfg).scaffold(tag_filter=["pets"])
+        assert (Path(tmp) / "test_pets.py").exists()
+        assert not (Path(tmp) / "test_store.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# form_upload fixture
+# ---------------------------------------------------------------------------
+
+
+def test_form_upload_scaffold_does_not_crash(form_upload: Path) -> None:
+    """Form-data endpoints must scaffold without error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(form_upload), tmp)
+        TestScaffolder(cfg).scaffold()
+        assert (Path(tmp) / "test_files.py").exists()
+
+
+def test_form_upload_validation_test_generated(form_upload: Path) -> None:
+    """Form endpoints with required fields must generate test_validation_error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(form_upload), tmp)
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_files.py")
+        assert "test_validation_error" in content
+
+
+def test_form_upload_test_success_stays_as_skip_with_services(
+    form_upload: Path,
+) -> None:
+    """Form upload test_success must remain a skip even with services — body schema is not
+    JSON-derivable (multipart/form-data only, no application/json schema)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(form_upload), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_files.py")
+        upload_class = content.split("class TestUploadFile:")[1].split("\nclass ")[0]
+        assert 'pytest.skip("implement me")' in upload_class
+
+
+# ---------------------------------------------------------------------------
+# multi_response fixture
+# ---------------------------------------------------------------------------
+
+
+def test_multi_response_scaffold_creates_all_classes(multi_response: Path) -> None:
+    """Multi-2xx response endpoints must all scaffold test classes without error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(multi_response), tmp)
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_items.py")
+        assert "TestGetItem" in content
+        assert "TestUpdateItem" in content
+        assert "TestDeleteItem" in content
+        assert "TestCreateItem" in content
+
+
+def test_multi_response_all_have_success_stub(multi_response: Path) -> None:
+    """Every operation in multi_response fixture must have a test_success method."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(multi_response), tmp)
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_items.py")
+        assert content.count("def test_success(") == 4
+
+
+def test_multi_response_post_auto_implemented_with_services(
+    multi_response: Path,
+) -> None:
+    """POST /items in multi_response (Item schema, no required fields) must auto-implement
+    test_success with services — body is '{}', response factory is make_item()."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(multi_response), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_items.py")
+        create_class = content.split("class TestCreateItem:")[1].split("\nclass ")[0]
+        assert 'pytest.skip("implement me")' not in create_class
+        assert "assert response.status_code ==" in create_class
+
+
+# ---------------------------------------------------------------------------
+# not_found_exception config
+# ---------------------------------------------------------------------------
+
+
+def test_not_found_exception_default_placeholder(no_tags: Path) -> None:
+    """When not_found_exception is not configured, '<NotFoundError>' appears as placeholder."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config_with_services(
+            str(no_tags), tmp, tmp + "/services", "myapp.services"
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        assert "<NotFoundError>" in content
+
+
+def test_not_found_exception_config_substitution(no_tags: Path) -> None:
+    """When not_found_exception is set, the configured expression replaces the placeholder."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Config(
+            spec=str(no_tags),
+            output=OutputConfig(models="src/generated/models", routers=_ROUTERS_DIR),
+            fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+            format=FormatConfig(enabled=False),
+            services=ServicesConfig(
+                generate=True,
+                output=tmp + "/services",
+                overwrite=True,
+                import_path="myapp.services",
+            ),
+            tests=TestsConfig(
+                generate=True,
+                output=tmp,
+                overwrite=True,
+                not_found_exception="HTTPException(status_code=404, detail='Not found')",
+            ),
+        )
+        TestScaffolder(cfg).scaffold()
+        content = _read(Path(tmp) / "test_default.py")
+        assert "<NotFoundError>" not in content
+        assert "HTTPException(status_code=404, detail='Not found')" in content

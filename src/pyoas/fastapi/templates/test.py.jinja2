@@ -125,12 +125,12 @@ class {{ op.class_name }}:
     def test_success(self, client_with_mock: TestClient, mock_service: AsyncMock) -> None:
         """Happy path — {{ op.method | upper }} {{ op.path }} → {{ op.success_status_code }}{% if op.response_type_str != "None" %} {{ op.response_type_str }}{% endif %}."""
         mock_service.{{ op.function_name }}.return_value = {{ op.response_factory or op.default_mock_return_repr }}
-        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.method in ("post", "put", "patch") and op.not_found_body_repr %}, json={{ op.not_found_body_repr }}{% endif %}{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
         assert response.status_code == {{ op.success_status_code }}
 {% else %}
     def test_success(self, client_with_mock: TestClient) -> None:
         """Happy path — {{ op.method | upper }} {{ op.path }} → {{ op.success_status_code }}{% if op.response_type_str != "None" %} {{ op.response_type_str }}{% endif %}."""
-        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
+        response = client_with_mock.{{ op.method }}("{{ op.filled_path }}"{% if op.method in ("post", "put", "patch") and op.not_found_body_repr %}, json={{ op.not_found_body_repr }}{% endif %}{% if op.filled_query_params %}, params={{ op.filled_query_params }}{% endif %})
         assert response.status_code == {{ op.success_status_code }}
 {% endif %}
 {% else %}
