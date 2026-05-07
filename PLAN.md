@@ -277,6 +277,162 @@ If so, append `Unpack[tuple[items_type, ...]]` or the simpler
 
 ---
 
+### T2-F · `auth_context` pytest fixture instead of hardcoded `AuthContext()`
+
+**Problem.** `fastapi/templates/test.py.jinja2` lines 29 and 48 emit:
+
+```python
+app.dependency_overrides[get_auth_context] = lambda: AuthContext()
+```
+
+directly inside the generated `client` and `client_with_mock` fixtures.  The
+`dependency_auth.py.jinja2` scaffold produces an empty `AuthContext` (no fields), which
+makes `AuthContext()` valid.  Real projects replace this stub with a real dataclass that
+has required fields (e.g. `OperatorContext(operator_id: int, partner_id: int)`) exposed
+via an alias in `app/dependencies/auth.py`.  This causes the generated tests to crash on
+construction: `TypeError: __init__() missing required positional arguments`.
+
+The workaround — manually changing `AuthContext()` to `AuthContext(1, 1)` in every test
+file — is overwritten the next time `pyoas generate` is run.
+
+**Solution.** Introduce an `auth_context` pytest fixture in `tests/generated/conftest.py`
+(the scaffolded-once file) and have the generated test files accept it as a parameter
+rather than constructing `AuthContext()` directly.
+
+- The `auth_context` fixture in `conftest.py` returns `AuthContext()` by default.
+- Users edit `conftest.py` **once** to return their real context
+  (e.g. `AuthContext(operator_id=1, partner_id=42)`).
+- `conftest.py` is scaffolded once and never overwritten unless
+  `tests.overwrite: true` — so the customisation persists across regenerations.
+- On `overwrite: true` (explicit full regeneration), conftest is regenerated from the
+  template and users re-apply their one-line customisation.
+
+**Real-world context (nova-data-api).**
+`app/dependencies/__init__.py` defines `OperatorContext(operator_id: int, partner_id: int)`.
+`app/dependencies/auth.py` re-exports it as `AuthContext = OperatorContext`.
+The generated `tests/generated/test_charging_stations.py` was manually patched to use
+`AuthContext(1, 1)` — a change that will be lost on the next overwrite run.
+
+**Template changes.**
+
+_`src/pyoas/fastapi/templates/test.py.jinja2`_
+
+```diff
+-def client() -> TestClient:
++def client({% if has_auth_dep %}auth_context: AuthContext{% endif %}) -> TestClient:
+     app = FastAPI()
+     app.include_router({{ tag_dirname }}_router)
+ {% if has_auth_dep %}
+-    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
++    app.dependency_overrides[get_auth_context] = lambda: auth_context
+ {% endif %}
+
+-def client_with_mock(mock_service: AsyncMock) -> TestClient:
++def client_with_mock(mock_service: AsyncMock{% if has_auth_dep %}, auth_context: AuthContext{% endif %}) -> TestClient:
+     app = FastAPI()
+     app.include_router({{ tag_dirname }}_router)
+     app.dependency_overrides[{{ service_dep_fn }}] = lambda: mock_service
+ {% if has_auth_dep %}
+-    app.dependency_overrides[get_auth_context] = lambda: AuthContext()
++    app.dependency_overrides[get_auth_context] = lambda: auth_context
+ {% endif %}
+```
+
+_`src/pyoas/fastapi/templates/conftest.py.jinja2`_
+
+- Make `from polyfactory...` import conditional on `factories` being non-empty (avoids
+  unused-import error when conftest is written solely for auth with no response models).
+- Append `auth_context` fixture block when `has_auth_dep`:
+
+```jinja2
+{% if factories %}
+from polyfactory.factories.pydantic_factory import ModelFactory
+{% endif %}
+...
+{% if has_auth_dep %}
+import pytest
+from {{ auth_dep_import_path }}.auth import AuthContext
+
+
+@pytest.fixture
+def auth_context() -> AuthContext:
+    """Return the AuthContext injected into generated test clients.
+
+    This file is scaffolded once and safe to edit.  Customize here to supply
+    your application-specific context, e.g.:
+        return AuthContext(operator_id=1, partner_id=42)
+    """
+    return AuthContext()
+{% endif %}
+```
+
+**`testscaffold.py` changes.**
+
+`_scaffold_conftest()` currently returns early if `not factories`.  Extend to also proceed
+when `has_auth_dep`.  Add `has_auth_dep: bool` and `auth_dep_import_path: str | None`
+parameters; thread into the template context and into the append-only path.
+
+In `scaffold()`, accumulate `any_has_auth` across tag contexts (`context["has_auth_dep"]`
+is already computed per tag in `_build_test_context()`) and pass to `_scaffold_conftest`.
+`auth_dep_import_path` is constant per project (`self._config.dependencies.import_path`).
+
+Append-only path (existing conftest.py present, no overwrite): if `has_auth_dep` and
+`"def auth_context("` is not in the existing file, prepend the auth import(s) and fixture
+to `new_lines`, guarding for already-present `import pytest` and the auth import line to
+avoid duplicates.
+
+**Files touched:**
+
+- `src/pyoas/fastapi/templates/test.py.jinja2`
+- `src/pyoas/fastapi/templates/conftest.py.jinja2`
+- `src/pyoas/fastapi/testscaffold.py`
+  - `_scaffold_conftest()` signature + body
+  - `scaffold()` — collect `any_has_auth`, pass to conftest builder
+- `tests/fastapi/test_testscaffold.py` — update any tests asserting on `AuthContext()`
+  in client fixture bodies; add a test for the append-only path that adds `auth_context`
+  to an existing conftest.py that lacks it
+- `tests/fastapi/__snapshots__/test_testscaffold.ambr` — regenerate with
+  `uv run pytest tests/fastapi/test_testscaffold.py --snapshot-update`
+
+**Key existing code locations:**
+
+| Location | Purpose |
+|---|---|
+| `testscaffold.py:490–568` | `_scaffold_conftest()` — full method to modify |
+| `testscaffold.py:336–438` | `scaffold()` — tag loop + conftest call site |
+| `testscaffold.py:903–907` | `has_auth_dep` computation (per-tag, in `_build_test_context`) |
+| `test.py.jinja2:24–31` | `client` fixture (change here) |
+| `test.py.jinja2:41–50` | `client_with_mock` fixture (change here) |
+| `conftest.py.jinja2:1–20` | current conftest template (polyfactory only) |
+| `tests/fastapi/test_testscaffold.py:72–85` | main snapshot test to update |
+| `tests/fastapi/__snapshots__/test_testscaffold.ambr` | snapshot file to regenerate |
+
+**Verification.**
+
+```bash
+# 1. Regenerate snapshots after template changes
+uv run pytest tests/fastapi/test_testscaffold.py --snapshot-update
+
+# 2. Full QA
+uv run pytest && uv run ruff check src/ && uv run mypy src/
+
+# 3. Smoke-test against nova-data-api (/Users/rawi/Documents/swch/nova-data-api)
+#    Run: pyoas generate (with overwrite: true)
+#    Assert: tests/generated/conftest.py contains auth_context fixture
+#    Assert: tests/generated/test_*.py client fixtures accept auth_context param
+#    Edit conftest.py auth_context to: return AuthContext(operator_id=1, partner_id=1)
+#    Run: pytest tests/generated/ — should pass
+```
+
+- [ ] Update `test.py.jinja2` — parametrize `client` and `client_with_mock`
+- [ ] Update `conftest.py.jinja2` — conditional polyfactory import + `auth_context` fixture
+- [ ] Update `testscaffold.py` — thread `has_auth_dep` / `auth_dep_import_path` to conftest builder
+- [ ] Update `_scaffold_conftest` append-only path to add `auth_context` if missing
+- [ ] Update/add tests in `test_testscaffold.py`
+- [ ] Regenerate snapshots
+
+---
+
 ## Tier 3 — Developer experience (target 0.3.x)
 
 ---
@@ -344,8 +500,8 @@ skipped them.
 **Action.** Run `git log --oneline` and manually write bullet points for each
 meaningful commit into `CHANGELOG.md` under the correct version.
 
-- [ ] Populate v0.1.0 entries
-- [ ] Populate v0.1.1 entries
+- [x] Populate v0.1.0 entries
+- [x] Populate v0.1.1 entries
 - [ ] Verify `cz bump` generates v0.2.0 entry correctly on next release
 
 ---
@@ -396,12 +552,12 @@ invalidating editor reload, `git diff` noise, and slowing watch mode.
 **Files touched:** `models/generator.py`, `fastapi/generator.py`,
 new `core/cache.py`.
 
-- [ ] `core/cache.py` — hash + read/write
-- [ ] Model generator: check/update cache
-- [ ] Router generator: check/update cache
-- [ ] `--clean` bypasses cache
-- [ ] `.gitignore` entry
-- [ ] Tests
+- [x] `core/cache.py` — hash + read/write
+- [x] Model generator: check/update cache
+- [x] Router generator: check/update cache
+- [x] `--clean` bypasses cache
+- [x] `.gitignore` entry
+- [x] Tests
 
 ---
 
