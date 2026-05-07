@@ -1,3 +1,25 @@
+## v0.2.0 (2026-05-07)
+
+### Feat
+
+- **fastapi**: parametrize test fixtures with auth_context instead of hardcoding AuthContext()
+- **fastapi**: skip unchanged router tags via hash cache
+- **models**: skip unchanged tags via hash cache
+- **core**: add GenerationCache and tag/config hash helpers
+- **cli**: add progress output flags and JSON diagnostic output
+- **models**: add OAS 3.1 \$defs schema support
+- **fastapi**: emit security scope annotations in router stubs and auth scaffold
+- **models**: add unique_items_as_set config flag with list deduplication validator
+- **models**: support prefixItems with variable-length tail (OAS 3.1 tuple)
+
+### Fix
+
+- **models**: discriminator mapping emits Pydantic Tag/Discriminator
+- **models**: allOf with single $ref returns ref name not union
+- fix wrong test mock import
+- **fastapi**: map text/plain and octet-stream request bodies to correct Python types
+- **models**: add circular self-referencing schema test and has_circular context flag
+
 ## v0.1.1 (2026-05-06)
 
 ### Added
