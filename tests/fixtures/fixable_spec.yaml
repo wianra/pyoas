@@ -1,0 +1,36 @@
+openapi: "3.0.0"
+info:
+  title: Fixable Spec
+  version: "1.0.0"
+tags:
+  - name: my-tag
+  - name: My-Tag
+paths:
+  /items:
+    get:
+      # No operationId → assign_operation_id
+      tags:
+        - my-tag
+      responses:
+        "200":
+          description: ok
+    post:
+      # No operationId → assign_operation_id; tag collision → normalize_tag
+      tags:
+        - My-Tag
+      responses:
+        "201":
+          description: created
+  /users:
+    get:
+      operationId: listItems
+      responses:
+        "200":
+          description: ok
+  /orders:
+    get:
+      # Duplicate operationId → dedupe_operation_id
+      operationId: listItems
+      responses:
+        "200":
+          description: ok

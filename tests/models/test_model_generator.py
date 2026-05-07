@@ -89,9 +89,9 @@ def test_schema_tag_map_petstore(petstore_30: Path) -> None:
     tag_map = build_schema_tag_map(spec_raw, grouped_raw)
 
     assert "Pet" in tag_map
-    assert tag_map["Pet"] == {"pets"}
-    assert tag_map["PetList"] == {"pets"}
-    assert tag_map["CreatePetRequest"] == {"pets"}
+    assert tag_map["Pet"] == {"Pets"}
+    assert tag_map["PetList"] == {"Pets"}
+    assert tag_map["CreatePetRequest"] == {"Pets"}
 
 
 def test_shared_schema_detected(multi_tag: Path) -> None:

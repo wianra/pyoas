@@ -502,7 +502,7 @@ meaningful commit into `CHANGELOG.md` under the correct version.
 
 - [x] Populate v0.1.0 entries
 - [x] Populate v0.1.1 entries
-- [ ] Verify `cz bump` generates v0.2.0 entry correctly on next release
+- [x] Verify `cz bump` generates v0.2.0 entry correctly on next release
 
 ---
 
@@ -578,10 +578,10 @@ new `core/cache.py`.
 
 **Files touched:** `core/cli.py`, new `core/fixer.py`.
 
-- [ ] `core/fixer.py`
-- [ ] `pyoas fix` CLI command
-- [ ] `--dry-run` flag
-- [ ] Tests
+- [x] `core/fixer.py`
+- [x] `pyoas fix` CLI command
+- [x] `--dry-run` flag
+- [x] Tests
 
 ---
 

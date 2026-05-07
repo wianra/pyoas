@@ -353,7 +353,7 @@ def test_tag_filter_restricts_scaffolding(petstore_30: Path) -> None:
     """scaffold(tag_filter=…) only creates files for matching tags."""
     with tempfile.TemporaryDirectory() as tmp:
         cfg = _make_config(str(petstore_30), tmp)
-        ServiceTestScaffolder(cfg).scaffold(tag_filter=["pets"])
+        ServiceTestScaffolder(cfg).scaffold(tag_filter=["Pets"])
         assert (Path(tmp) / "test_pets_service.py").exists()
         assert not (Path(tmp) / "test_store_service.py").exists()
 

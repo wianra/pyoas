@@ -8,9 +8,9 @@ from pyoas.core.tags import extract_tags, get_declared_tags
 def test_extract_petstore_tags(petstore_30) -> None:
     spec = resolve_refs(SpecParser(str(petstore_30)).load(), str(petstore_30))
     grouped = extract_tags(spec)
-    assert set(grouped.keys()) == {"pets", "store"}
-    assert len(grouped["pets"]) == 3  # listPets, createPet, getPet
-    assert len(grouped["store"]) == 1  # getInventory
+    assert set(grouped.keys()) == {"Pets", "Store"}
+    assert len(grouped["Pets"]) == 3  # listPets, createPet, getPet
+    assert len(grouped["Store"]) == 1  # getInventory
 
 
 def test_operations_have_required_keys(petstore_30) -> None:
@@ -57,7 +57,7 @@ def test_multi_tag(multi_tag) -> None:
 def test_get_declared_tags(petstore_30) -> None:
     spec = SpecParser(str(petstore_30)).load()
     tags = get_declared_tags(spec)
-    assert tags == ["pets", "store"]
+    assert tags == ["Pets", "Store"]
 
 
 def test_default_tag_collision_warning() -> None:

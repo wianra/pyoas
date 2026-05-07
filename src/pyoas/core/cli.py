@@ -514,6 +514,102 @@ def doctor(
 
 
 @app.command()
+def fix(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run", help="Print proposed changes without writing the spec"
+        ),
+    ] = False,
+    tag_casing: Annotated[
+        str,
+        typer.Option(
+            help="Canonical tag casing: 'title' (e.g. Pet Store) or 'lower' (e.g. pet store)"
+        ),
+    ] = "title",
+) -> None:
+    """Auto-fix common spec issues: assign operationIds, deduplicate, normalize tags."""
+    import difflib
+    import json as _json
+    from pathlib import Path as _Path
+
+    import yaml as _yaml
+
+    from pyoas.core.doctor import run_doctor_checks
+    from pyoas.core.fixer import fix_spec, serialize_spec
+
+    cfg = _load_cfg(config)
+    try:
+        p = _Path(cfg.spec)
+        original_text = p.read_text(encoding="utf-8")
+        spec_raw = (
+            _json.loads(original_text)
+            if p.suffix.lower() == ".json"
+            else _yaml.safe_load(original_text)
+        )
+    except (FileNotFoundError, OSError) as exc:
+        typer.echo(f"Error loading spec: {exc}", err=True)
+        raise typer.Exit(1)
+
+    fixed_spec, actions = fix_spec(spec_raw, cfg, tag_casing=tag_casing)
+
+    if not actions:
+        typer.echo("  No fixable issues found.")
+        return
+
+    # Print action summary
+    kind_color: dict[str, str] = {
+        "assign_operation_id": typer.colors.GREEN,
+        "dedupe_operation_id": typer.colors.YELLOW,
+        "normalize_tag": typer.colors.CYAN,
+        "normalize_tags_list": typer.colors.CYAN,
+    }
+    for action in actions:
+        color = kind_color.get(action.kind, typer.colors.WHITE)
+        styled = typer.style("  [FIXED]", fg=color)
+        typer.echo(f"{styled}  {action.kind:<25} {action.location} — {action.message}")
+
+    new_text = serialize_spec(fixed_spec, p.suffix)
+
+    if dry_run:
+        diff = list(
+            difflib.unified_diff(
+                original_text.splitlines(keepends=True),
+                new_text.splitlines(keepends=True),
+                fromfile=f"{cfg.spec} (before)",
+                tofile=f"{cfg.spec} (after)",
+            )
+        )
+        typer.echo("")
+        for line in diff:
+            typer.echo(line, nl=False)
+        typer.echo(
+            f"\n  {len(actions)} fix(es) would be applied. Re-run without --dry-run to write."
+        )
+        return
+
+    p.write_text(new_text, encoding="utf-8")
+    typer.echo(f"\n  {len(actions)} fix(es) applied. Spec updated: {cfg.spec}")
+
+    # Re-run doctor to confirm resolution
+    issues = run_doctor_checks(fixed_spec, cfg)
+    remaining_errors = [i for i in issues if i.level == "error"]
+    if remaining_errors:
+        typer.echo(
+            f"\n  {len(remaining_errors)} error(s) remain that fix cannot resolve:",
+            err=True,
+        )
+        for issue in remaining_errors:
+            typer.echo(
+                f"    [{issue.check}] {issue.location} — {issue.message}", err=True
+            )
+        raise typer.Exit(1)
+    else:
+        typer.echo("  Doctor: all fixable issues resolved.")
+
+
+@app.command()
 def drift(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
     tags: Annotated[str | None, _TAGS_OPTION] = None,
