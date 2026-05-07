@@ -524,11 +524,11 @@ The example output should be kept in sync with the generator via a CI step
 
 **Files touched:** new `examples/petstore/` tree.
 
-- [ ] Write petstore spec
-- [ ] Write pyoas.yaml
-- [ ] Generate and commit output
-- [ ] Write example README
-- [ ] Add CI step to keep it in sync
+- [x] Write petstore spec
+- [x] Write pyoas.yaml
+- [x] Generate and commit output
+- [x] Write example README
+- [x] Add CI step to keep it in sync
 
 ---
 

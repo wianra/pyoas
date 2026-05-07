@@ -3,6 +3,8 @@ from __future__ import annotations
 
 {% for entry in tags %}
 {% if entry.model_names %}
-from .{{ entry.dirname }} import {{ entry.model_names | join(", ") }}
+from .{{ entry.dirname }} import (
+{% for name in entry.model_names %}    {{ name }} as {{ name }},
+{% endfor %})
 {% endif %}
 {% endfor %}

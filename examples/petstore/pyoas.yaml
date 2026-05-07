@@ -1,0 +1,16 @@
+spec: openapi.yaml
+
+output:
+  models: src/generated/models
+  routers: src/generated/routers
+  source_root: src
+
+services:
+  generate: true
+  output: src/services
+  import_path: services
+
+tests:
+  generate: true
+  output: tests/generated
+  not_found_exception: "HTTPException(status_code=404)"
