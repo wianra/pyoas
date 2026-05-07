@@ -841,3 +841,39 @@ def test_scaffold_webhooks_no_webhooks_in_spec(tmp_path: Path) -> None:
     result = runner.invoke(app, ["scaffold", "webhooks", "--config", str(cfg)])
     assert result.exit_code == 0
     assert "No webhook" in result.output
+
+
+# ---------------------------------------------------------------------------
+# generation cache (T3-E)
+# ---------------------------------------------------------------------------
+
+
+def test_models_skips_unchanged_tags_on_second_run(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    first = runner.invoke(app, ["models", "--config", str(cfg)])
+    assert first.exit_code == 0, first.output
+
+    second = runner.invoke(app, ["models", "--config", str(cfg)])
+    assert second.exit_code == 0, second.output
+    assert "unchanged, skipped" in second.output
+
+
+def test_models_clean_bypasses_cache(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    runner.invoke(app, ["models", "--config", str(cfg)])
+
+    second = runner.invoke(app, ["models", "--config", str(cfg), "--clean"])
+    assert second.exit_code == 0, second.output
+    assert "unchanged, skipped" not in second.output
+
+
+def test_generate_skips_both_generators_on_second_run(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    first = runner.invoke(app, ["generate", "--config", str(cfg)])
+    assert first.exit_code == 0, first.output
+
+    second = runner.invoke(app, ["generate", "--config", str(cfg)])
+    assert second.exit_code == 0, second.output
+    assert "[models]" in second.output
+    assert "[routers]" in second.output
+    assert "unchanged, skipped" in second.output
