@@ -300,10 +300,10 @@ commands.
 **Files touched:** `core/cli.py`, `models/generator.py`,
 `fastapi/generator.py`.
 
-- [ ] Add `--quiet` / `--verbose` flags to generation commands
-- [ ] Progress reporter utility in `core/utils.py`
-- [ ] Thread through model generator
-- [ ] Thread through router generator
+- [x] Add `--quiet` / `--verbose` flags to generation commands
+- [x] Progress reporter utility in `core/utils.py`
+- [x] Thread through model generator
+- [x] Thread through router generator
 
 ---
 
@@ -323,10 +323,10 @@ must screen-scrape coloured text. This is fragile.
 
 **Files touched:** `core/cli.py`, `core/doctor.py`.
 
-- [ ] Add `--json` flag
-- [ ] Serialize doctor results
-- [ ] Serialize validate results
-- [ ] Test JSON output format
+- [x] Add `--json` flag
+- [x] Serialize doctor results
+- [x] Serialize validate results
+- [x] Test JSON output format
 
 ---
 

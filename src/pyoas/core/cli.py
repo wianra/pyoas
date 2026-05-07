@@ -17,6 +17,8 @@ app = typer.Typer(
 _CONFIG_OPTION = typer.Option(help="Path to pyoas config file")
 _TAGS_OPTION = typer.Option(help="Comma-separated list of tags to generate")
 _CLEAN_OPTION = typer.Option(help="Purge output directory before generation")
+_QUIET_OPTION = typer.Option(help="Suppress progress output (errors still shown)")
+_VERBOSE_OPTION = typer.Option(help="Show per-tag timing alongside progress output")
 
 scaffold_app = typer.Typer(
     help="Scaffold user-owned files (skips existing files by default)."
@@ -122,6 +124,8 @@ def models(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
     tags: Annotated[str | None, _TAGS_OPTION] = None,
     clean: Annotated[bool, _CLEAN_OPTION] = False,
+    quiet: Annotated[bool, _QUIET_OPTION] = False,
+    verbose: Annotated[bool, _VERBOSE_OPTION] = False,
 ) -> None:
     """Generate Pydantic v2 models from the OpenAPI spec."""
     try:
@@ -133,11 +137,16 @@ def models(
         )
         raise typer.Exit(1)
 
+    callback = None if quiet else lambda msg: typer.echo(msg, err=True)
     written = ModelGenerator(_load_cfg(config)).generate(
-        tag_filter=_tag_filter(tags), clean=clean
+        tag_filter=_tag_filter(tags),
+        clean=clean,
+        progress_callback=callback,
+        verbose=verbose,
     )
-    for path in written:
-        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
+    if not quiet:
+        for path in written:
+            typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
 
 
 @app.command()
@@ -145,6 +154,8 @@ def fastapi(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
     tags: Annotated[str | None, _TAGS_OPTION] = None,
     clean: Annotated[bool, _CLEAN_OPTION] = False,
+    quiet: Annotated[bool, _QUIET_OPTION] = False,
+    verbose: Annotated[bool, _VERBOSE_OPTION] = False,
 ) -> None:
     """Generate FastAPI routers from the OpenAPI spec."""
     try:
@@ -156,11 +167,16 @@ def fastapi(
         )
         raise typer.Exit(1)
 
+    callback = None if quiet else lambda msg: typer.echo(msg, err=True)
     written = RouterGenerator(_load_cfg(config)).generate(
-        tag_filter=_tag_filter(tags), clean=clean
+        tag_filter=_tag_filter(tags),
+        clean=clean,
+        progress_callback=callback,
+        verbose=verbose,
     )
-    for path in written:
-        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
+    if not quiet:
+        for path in written:
+            typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
 
 
 def _print_summary(rows: list[tuple[str, str, str]]) -> None:
@@ -196,6 +212,8 @@ def generate(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
     tags: Annotated[str | None, _TAGS_OPTION] = None,
     clean: Annotated[bool, _CLEAN_OPTION] = False,
+    quiet: Annotated[bool, _QUIET_OPTION] = False,
+    verbose: Annotated[bool, _VERBOSE_OPTION] = False,
 ) -> None:
     """Generate both Pydantic models and FastAPI routers."""
     missing: list[str] = []
@@ -221,17 +239,27 @@ def generate(
     cfg = _load_cfg(config)
     tag_filter = _tag_filter(tags)
     parsed = ParsedSpec.from_config(cfg)
+    callback = None if quiet else lambda msg: typer.echo(msg, err=True)
 
     model_gen = ModelGenerator(cfg)  # type: ignore[possibly-undefined]
     model_written = model_gen.generate(
-        tag_filter=tag_filter, clean=clean, parsed_spec=parsed
+        tag_filter=tag_filter,
+        clean=clean,
+        parsed_spec=parsed,
+        progress_callback=callback,
+        verbose=verbose,
     )
     router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
     router_written = router_gen.generate(
-        tag_filter=tag_filter, clean=clean, parsed_spec=parsed
+        tag_filter=tag_filter,
+        clean=clean,
+        parsed_spec=parsed,
+        progress_callback=callback,
+        verbose=verbose,
     )
-    for path in model_written + router_written:
-        typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
+    if not quiet:
+        for path in model_written + router_written:
+            typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
 
     summary: list[tuple[str, str, str]] = []
     warn_count = model_gen.unreferenced_count
@@ -393,22 +421,38 @@ def diff(
 @app.command()
 def validate(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit results as a JSON object to stdout")
+    ] = False,
 ) -> None:
     """Validate the OpenAPI spec referenced in the config and exit non-zero on errors."""
+    import json as _json
+
     from pyoas.core.parser import SpecParser
 
     cfg = _load_cfg(config)
     try:
         SpecParser(cfg.spec).load()
-        typer.echo(f"OK  {cfg.spec}")
+        if json_output:
+            typer.echo(_json.dumps({"status": "ok", "spec": cfg.spec, "error": None}))
+        else:
+            typer.echo(f"OK  {cfg.spec}")
     except (ValueError, FileNotFoundError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        if json_output:
+            typer.echo(
+                _json.dumps({"status": "error", "spec": cfg.spec, "error": str(exc)})
+            )
+        else:
+            typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1)
 
 
 @app.command()
 def doctor(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit results as a JSON object to stdout")
+    ] = False,
 ) -> None:
     """Run pre-flight diagnostic checks on the spec and config."""
     import json as _json
@@ -435,6 +479,24 @@ def doctor(
 
     errors = [i for i in issues if i.level == "error"]
     warnings = [i for i in issues if i.level == "warning"]
+
+    if json_output:
+        data = {
+            "status": "error" if errors else "ok",
+            "issues": [
+                {
+                    "level": i.level,
+                    "check": i.check,
+                    "message": i.message,
+                    "location": i.location,
+                }
+                for i in issues
+            ],
+        }
+        typer.echo(_json.dumps(data))
+        if errors:
+            raise typer.Exit(1)
+        return
 
     for issue in issues:
         tag = f"[{issue.level.upper()}]"

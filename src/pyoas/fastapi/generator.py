@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +56,8 @@ class RouterGenerator:
         clean: bool = False,
         *,
         parsed_spec: ParsedSpec | None = None,
+        progress_callback: Callable[[str], None] | None = None,
+        verbose: bool = False,
     ) -> list[Path]:
         """
         Generate FastAPI routers for all tags (or a subset via ``tag_filter``).
@@ -138,6 +142,7 @@ class RouterGenerator:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
+            _t0 = time.perf_counter()
             self._write_tag(
                 tag,
                 merged,
@@ -152,6 +157,11 @@ class RouterGenerator:
                 spec_hash=spec_hash,
             )
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            if progress_callback:
+                msg = f"[routers] {tag} ({len(merged)} endpoints)"
+                if verbose:
+                    msg += f"  {int((time.perf_counter() - _t0) * 1000)}ms"
+                progress_callback(msg)
 
         all_tags = list(grouped.keys())
         webhook_tag_set: set[str] = (

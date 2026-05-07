@@ -5,6 +5,8 @@ ModelGenerator — orchestrates Pydantic v2 model generation from an OpenAPI spe
 from __future__ import annotations
 
 import shutil
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,8 @@ class ModelGenerator:
         clean: bool = False,
         *,
         parsed_spec: ParsedSpec | None = None,
+        progress_callback: Callable[[str], None] | None = None,
+        verbose: bool = False,
     ) -> list[Path]:
         """
         Generate Pydantic v2 models for all tags (or a subset via ``tag_filter``).
@@ -155,12 +159,16 @@ class ModelGenerator:
                 for g in generic_groups.values()
                 if g.home_tag == tag
             ]
-            tag_model_names[tag] = self._write_tag(
-                tag,
+            all_schemas = (
                 base_entries
                 + defs_by_tag.get(tag, [])
                 + tag_schemas
-                + inline_by_tag.get(tag, []),
+                + inline_by_tag.get(tag, [])
+            )
+            _t0 = time.perf_counter()
+            tag_model_names[tag] = self._write_tag(
+                tag,
+                all_schemas,
                 renderer,
                 output_root,
                 schema_tag_map,
@@ -170,6 +178,11 @@ class ModelGenerator:
                 shared_defs_names=_shared_defs_names,
             )
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            if progress_callback:
+                msg = f"[models]  {tag} ({len(all_schemas)} schemas)"
+                if verbose:
+                    msg += f"  {int((time.perf_counter() - _t0) * 1000)}ms"
+                progress_callback(msg)
 
         shared_schemas = shared_defs + _collect_shared_schemas(
             spec, schema_tag_map, raw_components_schemas

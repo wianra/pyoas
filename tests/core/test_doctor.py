@@ -285,3 +285,69 @@ def test_doctor_reports_unresolvable_ref(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
     result = runner.invoke(app, ["doctor", "--config", str(cfg)])
     assert "unresolvable_ref" in result.output
+
+
+# ---------------------------------------------------------------------------
+# --json flag
+# ---------------------------------------------------------------------------
+
+
+def test_doctor_json_clean_spec_emits_ok_status(tmp_path: Path) -> None:
+    """doctor --json emits {"status": "ok", "issues": []} for a clean spec."""
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["status"] == "ok"
+    assert data["issues"] == []
+
+
+def test_doctor_json_error_spec_emits_error_status(tmp_path: Path) -> None:
+    """doctor --json emits {"status": "error", "issues": [...]} and exits 1."""
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data["status"] == "error"
+    assert any(i["level"] == "error" for i in data["issues"])
+
+
+def test_doctor_json_issue_shape(tmp_path: Path) -> None:
+    """Each issue in --json output has level, check, message, location fields."""
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    data = json.loads(result.output)
+    for issue in data["issues"]:
+        assert "level" in issue
+        assert "check" in issue
+        assert "message" in issue
+        assert "location" in issue
+
+
+def test_doctor_json_warning_exits_zero(tmp_path: Path) -> None:
+    """doctor --json exits 0 when only warnings are present."""
+    import json
+
+    spec = tmp_path / "warn_only.yaml"
+    spec.write_text(
+        "openapi: '3.0.0'\n"
+        "info: {title: T, version: '1'}\n"
+        "paths:\n"
+        "  /items:\n"
+        "    get:\n"
+        "      responses:\n"
+        "        '200': {description: ok}\n",
+        encoding="utf-8",
+    )
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["status"] == "ok"
+    assert any(i["level"] == "warning" for i in data["issues"])

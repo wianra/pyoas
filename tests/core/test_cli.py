@@ -612,6 +612,80 @@ def test_diff_detects_missing_service_methods(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# --quiet / --verbose flags
+# ---------------------------------------------------------------------------
+
+
+def test_models_quiet_suppresses_progress_and_file_listing(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["models", "--config", str(cfg), "--quiet"])
+    assert result.exit_code == 0, result.output
+    assert "wrote" not in result.output
+    assert "[models]" not in result.output
+    assert (tmp_path / "models" / "pets.py").exists()
+
+
+def test_models_verbose_shows_timing(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["models", "--config", str(cfg), "--verbose"])
+    assert result.exit_code == 0, result.output
+    assert "ms" in result.output
+
+
+def test_fastapi_quiet_suppresses_output(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["fastapi", "--config", str(cfg), "--quiet"])
+    assert result.exit_code == 0, result.output
+    assert "wrote" not in result.output
+    assert "[routers]" not in result.output
+    assert (tmp_path / "routers" / "pets.py").exists()
+
+
+def test_generate_quiet_suppresses_progress(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["generate", "--config", str(cfg), "--quiet"])
+    assert result.exit_code == 0, result.output
+    assert "[models]" not in result.output
+    assert "[routers]" not in result.output
+    assert (tmp_path / "models" / "pets.py").exists()
+    assert (tmp_path / "routers" / "pets.py").exists()
+
+
+def test_generate_verbose_shows_timing(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["generate", "--config", str(cfg), "--verbose"])
+    assert result.exit_code == 0, result.output
+    assert "ms" in result.output
+
+
+# ---------------------------------------------------------------------------
+# validate --json
+# ---------------------------------------------------------------------------
+
+
+def test_validate_json_valid_spec_emits_ok(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["validate", "--config", str(cfg), "--json"])
+    assert result.exit_code == 0, result.output
+    import json
+
+    data = json.loads(result.output)
+    assert data["status"] == "ok"
+    assert data["error"] is None
+
+
+def test_validate_json_missing_spec_emits_error(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, tmp_path / "missing.yaml")
+    result = runner.invoke(app, ["validate", "--config", str(cfg), "--json"])
+    assert result.exit_code == 1
+    import json
+
+    data = json.loads(result.output)
+    assert data["status"] == "error"
+    assert data["error"] is not None
+
+
+# ---------------------------------------------------------------------------
 # Webhook warning
 # ---------------------------------------------------------------------------
 
