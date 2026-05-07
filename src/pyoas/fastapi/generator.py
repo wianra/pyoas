@@ -6,6 +6,7 @@ Milestone 3 will fill in the complete implementation.
 
 from __future__ import annotations
 
+import json as _json
 import re
 import shutil
 import time
@@ -21,6 +22,7 @@ from pyoas.core.analysis import (
     detect_generic_groups_global,
     find_split_schema_names,
 )
+from pyoas.core.cache import GenerationCache, compute_config_hash, compute_tag_hash
 from pyoas.core.config import Config
 from pyoas.core.parsed_spec import ParsedSpec
 from pyoas.core.renderer import Renderer
@@ -134,6 +136,14 @@ class RouterGenerator:
 
         output_root.mkdir(parents=True, exist_ok=True)
 
+        use_cache = not clean
+        cache = (
+            GenerationCache.load(output_root / ".pyoas_cache.json")
+            if use_cache
+            else GenerationCache(output_root / ".pyoas_cache.json")
+        )
+        config_hash = compute_config_hash(cfg) if use_cache else ""
+
         written: list[Path] = []
         for tag, operations in grouped.items():
             raw_operations = grouped_raw.get(tag, [])
@@ -142,6 +152,20 @@ class RouterGenerator:
                 {**op, "raw_operation": raw_op["operation"]}
                 for op, raw_op in zip(operations, raw_operations)
             ]
+            _tag_hash = ""
+            if use_cache:
+                _content_json = _json.dumps(
+                    {"tag": tag, "operations": raw_operations},
+                    sort_keys=True,
+                    default=str,
+                )
+                _tag_hash = compute_tag_hash(tag, _content_json, config_hash)
+                _out_file = output_root / f"{tag_to_dirname(tag)}.py"
+                if cache.is_current(tag, _tag_hash) and _out_file.exists():
+                    if progress_callback:
+                        progress_callback(f"[routers] {tag} (unchanged, skipped)")
+                    written.append(_out_file)
+                    continue
             _t0 = time.perf_counter()
             self._write_tag(
                 tag,
@@ -157,6 +181,8 @@ class RouterGenerator:
                 spec_hash=spec_hash,
             )
             written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            if use_cache:
+                cache.update(tag, _tag_hash)
             if progress_callback:
                 msg = f"[routers] {tag} ({len(merged)} endpoints)"
                 if verbose:
@@ -193,6 +219,9 @@ class RouterGenerator:
             cfg.output.source_root,
             project_root=Path(cfg.spec).parent,
         )
+
+        if use_cache:
+            cache.save()
 
         if cfg.format.enabled:
             format_output(output_root)
