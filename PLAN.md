@@ -424,12 +424,12 @@ uv run pytest && uv run ruff check src/ && uv run mypy src/
 #    Run: pytest tests/generated/ — should pass
 ```
 
-- [ ] Update `test.py.jinja2` — parametrize `client` and `client_with_mock`
-- [ ] Update `conftest.py.jinja2` — conditional polyfactory import + `auth_context` fixture
-- [ ] Update `testscaffold.py` — thread `has_auth_dep` / `auth_dep_import_path` to conftest builder
-- [ ] Update `_scaffold_conftest` append-only path to add `auth_context` if missing
-- [ ] Update/add tests in `test_testscaffold.py`
-- [ ] Regenerate snapshots
+- [x] Update `test.py.jinja2` — parametrize `client` and `client_with_mock`
+- [x] Update `conftest.py.jinja2` — conditional polyfactory import + `auth_context` fixture
+- [x] Update `testscaffold.py` — thread `has_auth_dep` / `auth_dep_import_path` to conftest builder
+- [x] Update `_scaffold_conftest` append-only path to add `auth_context` if missing
+- [x] Update/add tests in `test_testscaffold.py`
+- [x] Regenerate snapshots
 
 ---
 
