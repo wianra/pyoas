@@ -585,69 +585,425 @@ new `core/cache.py`.
 
 ---
 
-## Tier 4 — Differentiation (future major, 0.4+)
+### T3-G · Extended doctor checks
 
-These are larger features that require architecture decisions. Listed here for
-awareness and to guide design choices in Tier 1–3 work.
+**Problem.** Two generation-quality issues are not caught pre-flight, causing
+silent bad output rather than an actionable warning:
+
+1. **Parameter shadowing** — When a path parameter (`/items/{id}`) and a
+   query or header parameter share the same name (`id`) in the same operation,
+   the generated Python function will have a duplicate argument name →
+   `SyntaxError` at import time.
+2. **Missing 2xx response schema** — When an operation defines no 2xx response
+   schema (or defines `{}` / no `content`), the router generator emits
+   `response_model=None` and the return type annotation is `Any`. This silently
+   kills client-side type safety. Common mistake in incomplete specs.
+
+**Fix.**
+- Add `parameter_shadowing` check (error): iterate each operation's
+  `parameters` list; collect path-param names; warn for any
+  query/header/cookie param whose name matches a path param name in the same
+  operation.
+- Add `missing_success_response` check (warning): for each operation, scan
+  `responses` for any 2xx key. If none exists, or the matching response has no
+  `content` block, emit the warning with the operation path + method.
+- Both checks follow the existing `DoctorCheck` result structure and appear in
+  both text and `--json` output.
+- `pyoas fix` does **not** attempt to auto-fix either (parameter shadowing
+  requires human judgement; missing schema requires domain knowledge of the
+  return type).
+
+**Files touched:** `core/doctor.py`, `tests/core/test_doctor.py`.
+
+**Tests:** add fixture paths that trigger each new check; assert check name,
+severity, and affected operation appear in results.
+
+- [ ] `parameter_shadowing` doctor check
+- [ ] `missing_success_response` doctor check
+- [ ] Tests for both checks
+- [ ] JSON output includes both new check names
+
+---
+
+## Tier 4 — Differentiation (target 0.4+)
+
+These are larger features with clear implementation paths now that Tier 1–3 is
+complete. Each is broken down to the same task-level detail as earlier tiers.
 
 ---
 
 ### T4-A · Jinja2 filter extension point
 
-Allow users to register custom Jinja2 filters via `pyoas.yaml`:
+**Problem.** The only way to change how OpenAPI types map to Python types is to
+fork the templates. Common real-world customisations (e.g. `format: uri` →
+`AnyUrl`, `format: uuid` → `UUID`, custom validation decorators) require
+maintaining a template fork across upgrades.
+
+**Design.**
 
 ```yaml
+# pyoas.yaml
 extensions:
-  filters: myapp.pyoas_extensions:filters  # dict of name → callable
+  filters: myapp.pyoas_extensions:custom_filters   # module:attr returning dict[str, Callable]
+  globals: myapp.pyoas_extensions:custom_globals   # module:attr returning dict[str, Any]
 ```
 
-The `Renderer` class (`core/renderer/__init__.py`) would load the module,
-call the factory, and inject filters into the Jinja2 environment. This enables
-custom format mappers (e.g. `format: uri` → `AnyUrl`) without forking templates.
+`custom_filters` must be a callable that returns `dict[str, Callable]`.
+`custom_globals` must be a callable that returns `dict[str, Any]`.
+Both are optional. The module is loaded at render time via `importlib`.
+
+**Files touched:** `core/config.py`, `core/renderer/__init__.py`,
+`core/doctor.py`, `core/cli.py` (init template), new
+`tests/core/test_renderer_extensions.py`.
+
+**Implementation tasks.**
+
+1. **ExtensionsConfig dataclass + YAML key** — Add `ExtensionsConfig(filters:
+   str | None = None, globals: str | None = None)` to `config.py`; add
+   `extensions: ExtensionsConfig = field(default_factory=ExtensionsConfig)` to
+   `Config`; update `pyoas init` template to include commented-out example
+   block.
+
+2. **importlib loader in Renderer** — In `core/renderer/__init__.py:__init__`,
+   after constructing `self._env`, call `_load_extensions(config.extensions)`.
+   `_load_extensions()` splits `"module:attr"` strings, `importlib.import_module`
+   the module, `getattr` the attr, calls it, and merges into
+   `self._env.filters` / `self._env.globals`. Raise `ConfigError` with a
+   human-readable message on `ImportError` or missing attr.
+
+3. **Doctor validation** — Add `extensions_load` check (error): attempt the
+   same `_load_extensions()` call in a dry-run mode; report any `ImportError`
+   or bad `module:attr` format before generation starts. Prevents silent
+   template failures at render time.
+
+4. **Thread through generators** — Both `ModelGenerator` and `RouterGenerator`
+   construct `Renderer(config=...)`; no change needed if Renderer reads
+   `config.extensions` internally. Verify the `Renderer` constructor signature
+   already accepts the full `Config` (it does — `renderer/__init__.py` line 18).
+
+5. **Tests** — `test_renderer_extensions.py`: create a temp module with a
+   filter dict; pass via config; assert filter appears in rendered output.
+   Separate test: missing module raises `ConfigError` at renderer init.
+   Doctor test: assert `extensions_load` check catches bad module path.
+
+- [ ] `ExtensionsConfig` dataclass + `Config` field + YAML init template block
+- [ ] `_load_extensions()` in `core/renderer/__init__.py`
+- [ ] `extensions_load` doctor check
+- [ ] Tests (renderer filter injection + missing module error + doctor check)
+- [ ] `pyoas.yaml` schema comment documentation
 
 ---
 
 ### T4-B · SQLAlchemy 2.0 model output target
 
-New optional extra `pyoas[sqlalchemy]`. Adds a `SQLAlchemyGenerator` that
-produces `DeclarativeBase` models alongside or instead of Pydantic models.
+**Problem.** Projects that use both an OpenAPI spec and a database need to
+maintain Pydantic models and SQLAlchemy models separately, leading to
+duplication and drift. `pyoas[sqlalchemy]` would generate `DeclarativeBase`
+models from the same spec.
 
-Key design questions:
-- How to handle schemas with no primary key in the spec?
-- Relationship inference from `$ref` arrays (one-to-many)?
-- Column type mapping from OpenAPI types?
+**Design decisions (resolved here so implementation is unambiguous).**
+
+| Decision | Resolution |
+|---|---|
+| Primary key | Config option `sqlalchemy.primary_key_field: str = "id"`. If the schema has a property matching that name, it becomes `Column(..., primary_key=True)`. Otherwise, a synthetic `id = Column(Integer, primary_key=True, autoincrement=True)` is prepended. |
+| Relationship inference | `$ref` fields → `relationship()` if the target schema is also being generated as a SQLAlchemy model. Arrays of `$ref` → one-to-many with a generated FK column. Non-model refs → plain `Column(JSON)`. |
+| Type mapping | See table below. Falls back to `Column(JSON)` for unrecognised formats. |
+| Dual output | Config `sqlalchemy.generate: bool = False`; models land in `output.sqlalchemy_models` (default `"src/generated/sqlalchemy_models"`). Pydantic models still generated unchanged. |
+
+**OpenAPI → SQLAlchemy Column type table:**
+
+| OAS type/format | SQLAlchemy Column |
+|---|---|
+| `string` | `String` |
+| `string / date-time` | `DateTime` |
+| `string / date` | `Date` |
+| `string / uuid` | `Uuid` |
+| `string / email` | `String(254)` |
+| `integer / int32` | `Integer` |
+| `integer / int64` | `BigInteger` |
+| `number / float` | `Float` |
+| `number / double` | `Double` |
+| `boolean` | `Boolean` |
+| `array` | `JSON` (unless $ref array — see relationship inference) |
+| `object` (inline) | `JSON` |
+
+**Files touched:** `core/config.py`, new `models/sqlalchemy_generator.py`,
+new `models/sqlalchemy_type_mapper.py`, new
+`models/templates/sqlalchemy_model.py.jinja2`, `pyproject.toml` (optional
+extra), `core/cli.py` (generate command wiring), new
+`tests/models/test_sqlalchemy_generator.py`.
+
+**Implementation tasks.**
+
+1. **`SQLAlchemyConfig` + `Config` wiring** — Add `SQLAlchemyConfig(generate:
+   bool = False, output: str = "src/generated/sqlalchemy_models", primary_key_field:
+   str = "id")` to `config.py`; add `sqlalchemy: SQLAlchemyConfig` to `Config`.
+   Gate the import of `sqlalchemy` behind a try/except `ImportError` with a
+   helpful "install pyoas[sqlalchemy]" message.
+
+2. **`models/sqlalchemy_type_mapper.py`** — Pure function
+   `schema_to_column_type(schema: dict) -> str` that applies the mapping table
+   above. Separate from `types.py` to avoid coupling. Returns a string like
+   `"Column(String)"` or `"Column(DateTime)"` for direct template insertion.
+
+3. **Relationship detector** — In `SQLAlchemyGenerator`, after collecting
+   schemas per tag, cross-reference `$ref` fields: if the target schema is in
+   the same generation set, emit `relationship()` + FK column. Use
+   `classifier.py`'s existing schema-to-tag map for target lookup.
+
+4. **`sqlalchemy_model.py.jinja2` template** — Render:
+   ```python
+   from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+   from sqlalchemy import String, Integer, ...
+
+   class Base(DeclarativeBase): pass
+
+   class Pet(Base):
+       __tablename__ = "pets"
+       id: Mapped[int] = mapped_column(primary_key=True)
+       name: Mapped[str] = mapped_column(String)
+       owner: Mapped["Owner"] = relationship(back_populates="pets")
+   ```
+   Use `Mapped[T]` / `mapped_column()` syntax (SQLAlchemy 2.0 only). Each
+   model in a separate class block in the file. One file per tag (mirrors
+   Pydantic output).
+
+5. **`SQLAlchemyGenerator` class** — Mirror `models/generator.py` structure:
+   accepts resolved spec + config, iterates tags, applies cache, writes output.
+   Reuse `GenerationCache` with a `sqlalchemy_` prefix in cache keys to avoid
+   collision with Pydantic cache entries.
+
+6. **Wire into `core/cli.py`** — In `generate` and `models` commands, after
+   Pydantic generation, check `config.sqlalchemy.generate` and call
+   `SQLAlchemyGenerator.generate()`.
+
+7. **Tests** — `test_sqlalchemy_generator.py`: snapshot tests using the
+   existing `tests/fixtures/` YAML files; assert `mapped_column`, `relationship`,
+   and FK columns appear correctly. Separate unit tests for
+   `schema_to_column_type`.
+
+- [ ] `SQLAlchemyConfig` + `Config` field
+- [ ] `models/sqlalchemy_type_mapper.py` with unit tests
+- [ ] Relationship detector logic
+- [ ] `sqlalchemy_model.py.jinja2` template
+- [ ] `SQLAlchemyGenerator` class with cache support
+- [ ] Wire into `generate` + `models` CLI commands
+- [ ] Snapshot tests against existing fixtures
+- [ ] `pyoas[sqlalchemy]` optional extra in `pyproject.toml`
 
 ---
 
 ### T4-C · `pyoas migrate` command
 
-Given two spec files (old + new), produce a structured diff:
-- New operations
-- Removed operations
-- Operations with changed request/response schemas
-- Breaking changes (removed required fields, narrowed types)
-- Non-breaking changes (new optional fields, widened types)
+**Problem.** API-first teams review spec changes in PRs but have no tooling to
+surface breaking vs non-breaking changes. Engineers must manually diff YAML
+files or trust spec authors to annotate changes.
 
-Output as human-readable markdown or `--json`. Use-case: PR reviews for
-API changes.
+**Design.**
+
+```
+pyoas migrate OLD_SPEC NEW_SPEC [--json] [--breaking-only]
+```
+
+Reads two spec files (path or URL), computes a structured diff, classifies
+each change, and exits non-zero if any breaking changes are found (useful for
+CI gates).
+
+**Breaking vs non-breaking classification:**
+
+| Change | Classification |
+|---|---|
+| Operation removed | Breaking |
+| Required request field removed | Breaking |
+| Response field type narrowed (e.g. `number` → `integer`) | Breaking |
+| `nullable: true` → `nullable: false` on response field | Breaking |
+| 2xx response schema changed to incompatible type | Breaking |
+| New required request field added | Breaking |
+| Operation added | Non-breaking |
+| Optional request field added | Non-breaking |
+| Optional response field added | Non-breaking |
+| Description / example changed | Non-breaking |
+| `nullable: false` → `nullable: true` on response field | Non-breaking |
+| Type widened (e.g. `integer` → `number`) | Non-breaking |
+
+**Files touched:** new `core/differ.py`, new `core/migrate.py` (CLI wiring +
+output formatters), `core/cli.py`.
+
+**Implementation tasks.**
+
+1. **`core/differ.py`** — Pure function
+   `diff_specs(old: dict, new: dict) -> SpecDiff` where `SpecDiff` is a
+   dataclass:
+   ```python
+   @dataclass
+   class SpecDiff:
+       added_operations: list[OperationRef]
+       removed_operations: list[OperationRef]
+       changed_operations: list[OperationChange]
+       added_schemas: list[str]
+       removed_schemas: list[str]
+       changed_schemas: list[SchemaChange]
+   ```
+   Build operation index (`{method}:{path}` → operation dict) for each spec.
+   Set-intersect to find added/removed. For changed: compare request body
+   schemas and 2xx response schemas field-by-field (recursive dict diff).
+   No dependency on resolver: accept already-resolved specs.
+
+2. **Breaking-change classifier** — `classify_changes(diff: SpecDiff) ->
+   list[MigrationIssue]` where `MigrationIssue` has `severity: "breaking" |
+   "non-breaking"`, `path`, `description`. Apply the table above. Pure
+   function; easily testable without file I/O.
+
+3. **`core/migrate.py`** — CLI command handler:
+   - Load and resolve both specs via existing `parser` + `resolver`.
+   - Call `diff_specs` + `classify_changes`.
+   - Format and emit output (text or JSON).
+   - Exit with code `1` if any breaking changes found (CI gate).
+
+4. **Text output formatter** — Grouped by breaking/non-breaking, coloured
+   (same style as `doctor`), with path + method per issue.
+
+5. **JSON output** —
+   ```json
+   {
+     "breaking": [{"path": "/pets", "method": "DELETE", "issue": "operation_removed"}],
+     "non_breaking": [...],
+     "summary": {"breaking": 1, "non_breaking": 3}
+   }
+   ```
+
+6. **Wire into CLI** — `pyoas migrate OLD NEW [--json] [--breaking-only]`.
+   `--breaking-only` suppresses non-breaking output (useful for CI).
+
+7. **Tests** — `tests/core/test_differ.py`: unit tests for `diff_specs` and
+   `classify_changes` with synthetic dicts (no file I/O). Integration test:
+   diff petstore v3.0 against a hand-modified copy with one operation removed
+   and one field added; assert correct classification.
+
+- [ ] `SpecDiff` + `OperationChange` + `SchemaChange` dataclasses
+- [ ] `diff_specs()` in `core/differ.py`
+- [ ] `classify_changes()` breaking-change rules
+- [ ] `core/migrate.py` — load + resolve + format + exit code
+- [ ] Text formatter (coloured, grouped)
+- [ ] JSON formatter
+- [ ] Wire into `core/cli.py`
+- [ ] Unit tests for differ + classifier
+- [ ] Integration test with modified petstore fixture
 
 ---
 
 ### T4-D · Plugin architecture
 
-Define a `pyoas.Plugin` protocol that third-party packages can implement:
+**Problem.** All generation logic is hardcoded. Adding a new output target
+(SQLAlchemy, TypeScript, Terraform) or a new spec transformation requires
+modifying pyoas internals. Third-party packages cannot extend pyoas without
+forking.
+
+**Design.** Minimal lifecycle protocol — only the hooks that can be implemented
+without refactoring the generators. Hooks are called synchronously. No
+dependency injection framework.
 
 ```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
 class Plugin(Protocol):
-    name: str
-    def on_spec_loaded(self, spec: ParsedSpec) -> ParsedSpec: ...
-    def on_tag_generated(self, tag: str, files: list[GeneratedFile]) -> list[GeneratedFile]: ...
-    def extra_templates(self) -> dict[str, str]: ...  # name → template source
+    name: str                          # Unique plugin identifier
+    version: str                       # For diagnostics
+
+    def on_spec_loaded(
+        self, spec: dict, resolved: dict
+    ) -> tuple[dict, dict]:
+        """Return (raw, resolved) — may modify in place or replace."""
+        ...
+
+    def on_model_file_written(
+        self, tag: str, path: str, content: str
+    ) -> str:
+        """Return (potentially modified) file content after Pydantic model generation."""
+        ...
+
+    def on_router_file_written(
+        self, tag: str, path: str, content: str
+    ) -> str:
+        """Return (potentially modified) file content after FastAPI router generation."""
+        ...
+
+    def on_generate_complete(self, stats: dict) -> None:
+        """Called once after all files written. stats = {tags, files_written, skipped}."""
+        ...
 ```
 
-Plugins registered via `pyproject.toml` entry points under
-`pyoas.plugins`. Enables SQLAlchemy, TypeScript, and other output
-targets as independent packages.
+Plugins are discovered via `pyproject.toml` entry points:
+
+```toml
+[project.entry-points."pyoas.plugins"]
+my_plugin = "mypackage.plugin:MyPlugin"
+```
+
+And optionally listed in `pyoas.yaml` for explicit activation or ordering:
+
+```yaml
+plugins:
+  - mypackage.plugin:MyPlugin   # explicit activation (no entry-point needed)
+```
+
+**Note:** T4-D does **not** refactor `ModelGenerator` or `RouterGenerator`
+internals. It adds a thin hook layer around existing file-write operations.
+This avoids breaking changes while enabling the most common use cases
+(post-processing generated content, adding custom headers, injecting imports).
+
+**Files touched:** new `core/plugins.py`, `core/config.py` (plugins list),
+`models/generator.py` (call hooks after write), `fastapi/generator.py` (call
+hooks after write), `core/cli.py` (load + validate plugins), `core/doctor.py`
+(new `plugin_load` check), new `tests/core/test_plugins.py`.
+
+**Implementation tasks.**
+
+1. **`Plugin` Protocol in `core/plugins.py`** — Define the protocol above.
+   Add `PluginLoader` class: `load_from_config(config) -> list[Plugin]` that:
+   - Reads `config.plugins` list (explicit module:class paths)
+   - Discovers entry points under `"pyoas.plugins"` group
+   - Instantiates each class (no-args constructor)
+   - Validates each instance satisfies `isinstance(obj, Plugin)` (runtime_checkable)
+
+2. **`plugins: list[str]` in `Config`** — New field; default empty list.
+   Each entry is `"module:ClassName"` or just `"module"` (import the first
+   `Plugin` implementor found).
+
+3. **`plugin_load` doctor check** — Same dry-run load as T4-A's
+   `extensions_load`; report any failing imports or non-Protocol classes.
+
+4. **Hook calls in `ModelGenerator`** — After each file write, call
+   `on_model_file_written(tag, path, content)` on each loaded plugin; replace
+   file content with return value. If any plugin returns an empty string, raise
+   `PluginError` (prevents accidental deletion).
+
+5. **Hook calls in `RouterGenerator`** — Same pattern for
+   `on_router_file_written`.
+
+6. **`on_spec_loaded` hook in CLI** — After parsing + resolving in
+   `generate` / `models` / `fastapi` commands, pass `(raw, resolved)` through
+   the plugin chain before handing to generators.
+
+7. **`on_generate_complete` hook** — Called once in `generate` command after
+   all generators finish, with stats dict.
+
+8. **Tests** — `test_plugins.py`: create a minimal `Plugin` implementation
+   in a test fixture module; assert hook is called with correct arguments and
+   return value is used. Test that `PluginLoader` discovers entry points (mock
+   `importlib.metadata.entry_points`). Doctor test: assert `plugin_load` check
+   catches bad module path.
+
+- [ ] `Plugin` Protocol + `PluginLoader` in `core/plugins.py`
+- [ ] `plugins: list[str]` in `Config`
+- [ ] `plugin_load` doctor check
+- [ ] Hook calls in `ModelGenerator` (after file write)
+- [ ] Hook calls in `RouterGenerator` (after file write)
+- [ ] `on_spec_loaded` hook in CLI generate commands
+- [ ] `on_generate_complete` hook in CLI generate command
+- [ ] Tests (hook invocation + entry-point discovery + doctor check)
+- [ ] Example plugin in `examples/` showing import injection use-case
 
 ---
 
@@ -658,12 +1014,13 @@ These apply across all tiers and should be kept in mind during implementation.
 | Concern | Guidance |
 |---|---|
 | Snapshot tests | Run `uv run pytest --snapshot-update` after any template change |
-| Conventional commits | Use `fix:` for T1, `feat:` for T2–T3, `feat!:` for T4 breaking |
+| Conventional commits | Use `fix:` for T1/T3-G, `feat:` for T2–T3, `feat!:` for T4 breaking |
 | Integration tests | Run `uv run pytest --run-integration` before any release |
 | Config backwards compat | New config keys must have defaults; never rename existing keys |
 | Template override contract | Any variable added to a template context must be documented; user overrides rely on the contract |
 | Type annotations | All new functions must be fully typed; `uv run mypy src/` must pass |
 | Ruff | `uv run ruff check src/` must pass; line length 88, select E F I UP |
+| T4 ordering | T4-A is independent. T4-C is independent. T4-B can ship before T4-D. T4-D should be last (it wraps around everything). |
 
 ---
 
@@ -674,5 +1031,8 @@ These apply across all tiers and should be kept in mind during implementation.
 | `0.1.2` | T1-A, T1-C (quick correctness fixes) |
 | `0.1.3` | T1-B, T1-D (allOf + discriminator) |
 | `0.2.0` | T2-A through T2-E + T3-C (CHANGELOG) |
-| `0.3.0` | T3-A through T3-F |
-| `0.4.0` | T4-A, T4-B (first power features) |
+| `0.3.0` | T2-F + T3-A through T3-F |
+| `0.3.1` | T3-G (extended doctor checks — patch, no new generation output) |
+| `0.4.0` | T4-A (filter extensions) + T4-C (`pyoas migrate`) |
+| `0.5.0` | T4-B (SQLAlchemy target) |
+| `0.6.0` | T4-D (plugin architecture) |

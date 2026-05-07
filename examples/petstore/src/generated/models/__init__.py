@@ -5,9 +5,6 @@ from .pets import (
     CreatePetRequest as CreatePetRequest,
 )
 from .pets import (
-    Pet as Pet,
-)
-from .pets import (
     PetList as PetList,
 )
 from .pets import (
@@ -23,9 +20,6 @@ from .store import (
     CreateOrderRequest as CreateOrderRequest,
 )
 from .store import (
-    Order as Order,
-)
-from .store import (
     OrderRead as OrderRead,
 )
 from .store import (
@@ -33,9 +27,6 @@ from .store import (
 )
 from .users import (
     CreateUserRequest as CreateUserRequest,
-)
-from .users import (
-    User as User,
 )
 from .users import (
     UserRead as UserRead,
