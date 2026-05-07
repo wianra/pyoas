@@ -222,3 +222,6 @@ __marimo__/
 
 # Integration test spec files (downloaded on demand)
 tests/integration/specs/
+
+# pyoas generation cache
+.pyoas_cache.json
