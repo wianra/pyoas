@@ -686,11 +686,11 @@ Both are optional. The module is loaded at render time via `importlib`.
    Separate test: missing module raises `ConfigError` at renderer init.
    Doctor test: assert `extensions_load` check catches bad module path.
 
-- [ ] `ExtensionsConfig` dataclass + `Config` field + YAML init template block
-- [ ] `_load_extensions()` in `core/renderer/__init__.py`
-- [ ] `extensions_load` doctor check
-- [ ] Tests (renderer filter injection + missing module error + doctor check)
-- [ ] `pyoas.yaml` schema comment documentation
+- [x] `ExtensionsConfig` dataclass + `Config` field + YAML init template block
+- [x] `_load_extensions()` in `core/renderer/__init__.py`
+- [x] `extensions_load` doctor check
+- [x] Tests (renderer filter injection + missing module error + doctor check)
+- [x] `pyoas.yaml` schema comment documentation
 
 ---
 

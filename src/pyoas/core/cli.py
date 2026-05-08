@@ -114,6 +114,9 @@ skills:
   services_pattern: none  # none | repository | domain
 webhooks:
   generate: false  # set to true to generate code for OAS 3.1 webhooks
+# extensions:
+#   filters: null  # e.g. "myapp.pyoas_extensions:custom_filters"
+#   globals: null  # e.g. "myapp.pyoas_extensions:custom_globals"
 """
     out.write_text(content, encoding="utf-8")
     typer.echo(f"Created {output}")

@@ -535,3 +535,55 @@ def test_doctor_json_includes_new_check_names(tmp_path: Path) -> None:
     check_names = {i["check"] for i in data["issues"]}
     assert "parameter_shadowing" in check_names
     assert "missing_success_response" in check_names
+
+
+# ---------------------------------------------------------------------------
+# T4-A: extensions_load check
+# ---------------------------------------------------------------------------
+
+
+def test_extensions_load_detects_missing_module() -> None:
+    """extensions_load error when the filter module cannot be found."""
+    from pyoas.core.config import ExtensionsConfig
+
+    cfg = _minimal_cfg("fake.yaml")
+    cfg.extensions = ExtensionsConfig(filters="nonexistent_module_xyz_abc:get_filters")
+    spec_raw: dict = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {},
+    }
+    issues = run_doctor_checks(spec_raw, cfg)
+    ext_issues = [i for i in issues if i.check == "extensions_load"]
+    assert len(ext_issues) == 1
+    assert ext_issues[0].level == "error"
+    assert "nonexistent_module_xyz_abc" in ext_issues[0].message
+
+
+def test_extensions_load_detects_bad_format() -> None:
+    """extensions_load error when the extension path has no ':' separator."""
+    from pyoas.core.config import ExtensionsConfig
+
+    cfg = _minimal_cfg("fake.yaml")
+    cfg.extensions = ExtensionsConfig(filters="not_a_valid_format")
+    spec_raw: dict = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {},
+    }
+    issues = run_doctor_checks(spec_raw, cfg)
+    ext_issues = [i for i in issues if i.check == "extensions_load"]
+    assert len(ext_issues) == 1
+    assert ext_issues[0].level == "error"
+
+
+def test_extensions_load_no_issue_when_not_configured() -> None:
+    """No extensions_load issue when extensions are not set (default config)."""
+    cfg = _minimal_cfg("fake.yaml")
+    spec_raw: dict = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {},
+    }
+    issues = run_doctor_checks(spec_raw, cfg)
+    assert not any(i.check == "extensions_load" for i in issues)

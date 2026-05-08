@@ -98,6 +98,12 @@ class WebhooksConfig:
 
 
 @dataclass
+class ExtensionsConfig:
+    filters: str | None = None  # "module:attr" returning dict[str, Callable]
+    globals: str | None = None  # "module:attr" returning dict[str, Any]
+
+
+@dataclass
 class Config:
     spec: str
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -112,6 +118,7 @@ class Config:
     router: RouterConfig = field(default_factory=RouterConfig)
     dependencies: DependenciesConfig = field(default_factory=DependenciesConfig)
     webhooks: WebhooksConfig = field(default_factory=WebhooksConfig)
+    extensions: ExtensionsConfig = field(default_factory=ExtensionsConfig)
 
 
 def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
@@ -131,6 +138,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     rtr = data.get("router", {})
     dep = data.get("dependencies", {})
     wh = data.get("webhooks", {})
+    ext = data.get("extensions", {})
 
     source_root = out.get("source_root", "src")
     models_rel = out.get("models", "src/generated/models")
@@ -212,6 +220,10 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
         ),
         webhooks=WebhooksConfig(
             generate=wh.get("generate", False),
+        ),
+        extensions=ExtensionsConfig(
+            filters=ext.get("filters") if isinstance(ext, dict) else None,
+            globals=ext.get("globals") if isinstance(ext, dict) else None,
         ),
     )
 

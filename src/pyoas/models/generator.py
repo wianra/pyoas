@@ -108,6 +108,7 @@ class ModelGenerator:
         renderer = Renderer(
             default_templates_dir=_DEFAULT_TEMPLATES,
             user_templates_dir=user_tmpl_dir,
+            extensions_config=cfg.extensions,
         )
 
         output_root = Path(cfg.output.models)

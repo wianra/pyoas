@@ -36,6 +36,7 @@ def run_doctor_checks(spec_raw: dict[str, Any], cfg: Any) -> list[DoctorIssue]:
     issues.extend(_check_missing_success_response(spec_raw))
     issues.extend(_check_schemas(spec_raw))
     issues.extend(_check_services_import_path(cfg))
+    issues.extend(_check_extensions_load(cfg))
 
     return issues
 
@@ -295,4 +296,46 @@ def _check_services_import_path(cfg: Any) -> list[DoctorIssue]:
                 location=f"services.import_path: {import_path}",
             )
         )
+    return issues
+
+
+def _check_extensions_load(cfg: Any) -> list[DoctorIssue]:
+    """Check: extension filter/global modules can be found on sys.path."""
+    import importlib.util
+
+    issues: list[DoctorIssue] = []
+    ext = getattr(cfg, "extensions", None)
+    if ext is None:
+        return issues
+
+    for attr_path, label in (
+        (getattr(ext, "filters", None), "extensions.filters"),
+        (getattr(ext, "globals", None), "extensions.globals"),
+    ):
+        if not attr_path:
+            continue
+        if ":" not in attr_path:
+            issues.append(
+                DoctorIssue(
+                    level="error",
+                    check="extensions_load",
+                    message=f"'{attr_path}' must be in 'module:attr' format",
+                    location=label,
+                )
+            )
+            continue
+        module_name, _ = attr_path.rsplit(":", 1)
+        try:
+            found = importlib.util.find_spec(module_name)
+        except (ModuleNotFoundError, ValueError):
+            found = None
+        if not found:
+            issues.append(
+                DoctorIssue(
+                    level="error",
+                    check="extensions_load",
+                    message=f"module '{module_name}' could not be found on sys.path",
+                    location=label,
+                )
+            )
     return issues
