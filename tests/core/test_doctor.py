@@ -351,3 +351,187 @@ def test_doctor_json_warning_exits_zero(tmp_path: Path) -> None:
     data = json.loads(result.output)
     assert data["status"] == "ok"
     assert any(i["level"] == "warning" for i in data["issues"])
+
+
+# ---------------------------------------------------------------------------
+# T3-G: parameter_shadowing check
+# ---------------------------------------------------------------------------
+
+
+def test_detects_parameter_shadowing() -> None:
+    """Error when a query param name matches a path param name in the same operation."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "operationId": "getItem",
+                    "parameters": [
+                        {
+                            "in": "path",
+                            "name": "id",
+                            "required": True,
+                            "schema": {"type": "integer"},
+                        },
+                        {"in": "query", "name": "id", "schema": {"type": "string"}},
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    shadowing = [i for i in issues if i.check == "parameter_shadowing"]
+    assert len(shadowing) == 1
+    assert shadowing[0].level == "error"
+    assert "id" in shadowing[0].message
+    assert "GET /items/{id}" == shadowing[0].location
+
+
+def test_parameter_shadowing_no_false_positive() -> None:
+    """No parameter_shadowing issue when query param name differs from path params."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "operationId": "getItem",
+                    "parameters": [
+                        {
+                            "in": "path",
+                            "name": "id",
+                            "required": True,
+                            "schema": {"type": "integer"},
+                        },
+                        {"in": "query", "name": "filter", "schema": {"type": "string"}},
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    assert not any(i.check == "parameter_shadowing" for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# T3-G: missing_success_response check
+# ---------------------------------------------------------------------------
+
+
+def test_detects_missing_success_response_no_2xx() -> None:
+    """Warning when an operation defines no 2xx response at all."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items": {
+                "post": {
+                    "operationId": "createItem",
+                    "responses": {
+                        "400": {"description": "bad request"},
+                    },
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    missing = [i for i in issues if i.check == "missing_success_response"]
+    assert len(missing) == 1
+    assert missing[0].level == "warning"
+    assert "POST /items" == missing[0].location
+
+
+def test_detects_missing_success_response_no_content() -> None:
+    """Warning when 2xx response exists but has no content schema."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items/{id}": {
+                "delete": {
+                    "operationId": "deleteItem",
+                    "parameters": [
+                        {
+                            "in": "path",
+                            "name": "id",
+                            "required": True,
+                            "schema": {"type": "integer"},
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "deleted"},
+                    },
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    missing = [i for i in issues if i.check == "missing_success_response"]
+    assert len(missing) == 1
+    assert missing[0].level == "warning"
+    assert "200" in missing[0].message
+
+
+def test_missing_success_response_no_false_positive() -> None:
+    """No missing_success_response warning when 2xx response has a content schema."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items": {
+                "get": {
+                    "operationId": "listItems",
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    assert not any(i.check == "missing_success_response" for i in issues)
+
+
+def test_doctor_json_includes_new_check_names(tmp_path: Path) -> None:
+    """--json output includes parameter_shadowing and missing_success_response check names."""
+    import json
+
+    spec = tmp_path / "shadow_and_missing.yaml"
+    spec.write_text(
+        "openapi: '3.0.0'\n"
+        "info: {title: T, version: '1'}\n"
+        "paths:\n"
+        "  /items/{id}:\n"
+        "    get:\n"
+        "      operationId: getItem\n"
+        "      parameters:\n"
+        "        - {in: path, name: id, required: true, schema: {type: integer}}\n"
+        "        - {in: query, name: id, schema: {type: string}}\n"
+        "      responses:\n"
+        "        '400': {description: bad request}\n",
+        encoding="utf-8",
+    )
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    data = json.loads(result.output)
+    check_names = {i["check"] for i in data["issues"]}
+    assert "parameter_shadowing" in check_names
+    assert "missing_success_response" in check_names

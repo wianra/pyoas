@@ -618,10 +618,10 @@ silent bad output rather than an actionable warning:
 **Tests:** add fixture paths that trigger each new check; assert check name,
 severity, and affected operation appear in results.
 
-- [ ] `parameter_shadowing` doctor check
-- [ ] `missing_success_response` doctor check
-- [ ] Tests for both checks
-- [ ] JSON output includes both new check names
+- [x] `parameter_shadowing` doctor check
+- [x] `missing_success_response` doctor check
+- [x] Tests for both checks
+- [x] JSON output includes both new check names
 
 ---
 

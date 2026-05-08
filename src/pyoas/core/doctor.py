@@ -32,6 +32,8 @@ def run_doctor_checks(spec_raw: dict[str, Any], cfg: Any) -> list[DoctorIssue]:
     issues: list[DoctorIssue] = []
 
     issues.extend(_check_operations(spec_raw))
+    issues.extend(_check_parameter_shadowing(spec_raw))
+    issues.extend(_check_missing_success_response(spec_raw))
     issues.extend(_check_schemas(spec_raw))
     issues.extend(_check_services_import_path(cfg))
 
@@ -106,6 +108,99 @@ def _check_operations(spec_raw: dict[str, Any]) -> list[DoctorIssue]:
                     location=f"tags: {', '.join(originals)}",
                 )
             )
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Parameter-level checks
+# ---------------------------------------------------------------------------
+
+
+def _check_parameter_shadowing(spec_raw: dict[str, Any]) -> list[DoctorIssue]:
+    """Check: query/header/cookie param name collides with a path param name."""
+    issues: list[DoctorIssue] = []
+
+    for path, path_item in (spec_raw.get("paths") or {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                continue
+
+            params = operation.get("parameters") or []
+            path_param_names = {
+                p["name"]
+                for p in params
+                if isinstance(p, dict) and p.get("in") == "path" and "name" in p
+            }
+
+            for param in params:
+                if not isinstance(param, dict):
+                    continue
+                if param.get("in") in ("query", "header", "cookie"):
+                    name = param.get("name", "")
+                    if name in path_param_names:
+                        issues.append(
+                            DoctorIssue(
+                                level="error",
+                                check="parameter_shadowing",
+                                message=(
+                                    f"parameter '{name}' ({param['in']}) shadows "
+                                    f"path parameter of the same name — "
+                                    f"generates a duplicate Python argument"
+                                ),
+                                location=f"{method.upper()} {path}",
+                            )
+                        )
+
+    return issues
+
+
+def _check_missing_success_response(spec_raw: dict[str, Any]) -> list[DoctorIssue]:
+    """Check: operation has no 2xx response or 2xx response has no content schema."""
+    issues: list[DoctorIssue] = []
+
+    for path, path_item in (spec_raw.get("paths") or {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                continue
+
+            responses = operation.get("responses") or {}
+            location = f"{method.upper()} {path}"
+
+            success_keys = [k for k in responses if str(k).startswith("2")]
+            if not success_keys:
+                issues.append(
+                    DoctorIssue(
+                        level="warning",
+                        check="missing_success_response",
+                        message="operation defines no 2xx response — router will emit response_model=None",
+                        location=location,
+                    )
+                )
+                continue
+
+            for key in success_keys:
+                response = responses[key]
+                if not isinstance(response, dict) or not response.get("content"):
+                    issues.append(
+                        DoctorIssue(
+                            level="warning",
+                            check="missing_success_response",
+                            message=(
+                                f"response '{key}' has no content schema — "
+                                f"return type annotation will be Any"
+                            ),
+                            location=location,
+                        )
+                    )
 
     return issues
 
