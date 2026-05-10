@@ -451,6 +451,33 @@ def validate(
 
 
 @app.command()
+def migrate(
+    old_spec: Annotated[
+        str, typer.Argument(help="Path or URL of the old (baseline) spec")
+    ],
+    new_spec: Annotated[str, typer.Argument(help="Path or URL of the new spec")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit results as a JSON object to stdout")
+    ] = False,
+    breaking_only: Annotated[
+        bool,
+        typer.Option(
+            "--breaking-only",
+            help="Only report breaking changes (suppress non-breaking)",
+        ),
+    ] = False,
+) -> None:
+    """Diff two OpenAPI specs and exit non-zero if breaking changes are found."""
+    from pyoas.core.migrate import run_migrate as _run_migrate
+
+    raise typer.Exit(
+        _run_migrate(
+            old_spec, new_spec, json_output=json_output, breaking_only=breaking_only
+        )
+    )
+
+
+@app.command()
 def doctor(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
     json_output: Annotated[
