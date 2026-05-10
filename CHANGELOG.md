@@ -1,3 +1,15 @@
+## v0.4.0 (2026-05-10)
+
+### Feat
+
+- **core**: add plugin architecture with lifecycle hooks (T4-D)
+- **core**: add pyoas migrate command with breaking-change detection (T4-C)
+- **core**: add Jinja2 filter/global extension point via config (T4-A)
+
+### Fix
+
+- add parameter_shadowing and missing_success_response doctor checks
+
 ## v0.3.0 (2026-05-07)
 
 ### Feat
