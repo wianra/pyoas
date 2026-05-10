@@ -37,6 +37,7 @@ def run_doctor_checks(spec_raw: dict[str, Any], cfg: Any) -> list[DoctorIssue]:
     issues.extend(_check_schemas(spec_raw))
     issues.extend(_check_services_import_path(cfg))
     issues.extend(_check_extensions_load(cfg))
+    issues.extend(_check_plugin_load(cfg))
 
     return issues
 
@@ -336,6 +337,40 @@ def _check_extensions_load(cfg: Any) -> list[DoctorIssue]:
                     check="extensions_load",
                     message=f"module '{module_name}' could not be found on sys.path",
                     location=label,
+                )
+            )
+    return issues
+
+
+def _check_plugin_load(cfg: Any) -> list[DoctorIssue]:
+    """Check: all entries in config.plugins can be found on sys.path."""
+    import importlib.util
+
+    issues: list[DoctorIssue] = []
+    plugin_list = getattr(cfg, "plugins", None) or []
+    for spec_str in plugin_list:
+        if ":" not in spec_str:
+            issues.append(
+                DoctorIssue(
+                    level="error",
+                    check="plugin_load",
+                    message=f"'{spec_str}' must be in 'module:ClassName' format",
+                    location=f"plugins: {spec_str}",
+                )
+            )
+            continue
+        module_name, _ = spec_str.rsplit(":", 1)
+        try:
+            found = importlib.util.find_spec(module_name)
+        except (ModuleNotFoundError, ValueError):
+            found = None
+        if not found:
+            issues.append(
+                DoctorIssue(
+                    level="error",
+                    check="plugin_load",
+                    message=f"module '{module_name}' could not be found on sys.path",
+                    location=f"plugins: {spec_str}",
                 )
             )
     return issues

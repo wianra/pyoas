@@ -54,6 +54,9 @@ class ModelGenerator:
     def __init__(self, config: Config) -> None:
         self._config = config
         self.unreferenced_count: int = 0
+        from pyoas.core.plugins import load_plugins
+
+        self._plugins = load_plugins(config)
 
     def generate(
         self,
@@ -361,7 +364,16 @@ class ModelGenerator:
             rs["name"] for rs in context["schemas"] if not rs.get("is_internal")
         ]
         models_src = renderer.render("model.py.jinja2", context)
-        (output_root / f"{tag_to_dirname(tag)}.py").write_text(
-            models_src, encoding="utf-8"
-        )
+        out_path = output_root / f"{tag_to_dirname(tag)}.py"
+        for plugin in self._plugins:
+            result = plugin.on_model_file_written(tag, str(out_path), models_src)
+            if not result:
+                from pyoas.core.plugins import PluginError
+
+                raise PluginError(
+                    f"Plugin {plugin.name!r} returned empty content from"
+                    f" on_model_file_written for tag {tag!r}"
+                )
+            models_src = result
+        out_path.write_text(models_src, encoding="utf-8")
         return model_names

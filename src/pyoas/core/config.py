@@ -119,6 +119,7 @@ class Config:
     dependencies: DependenciesConfig = field(default_factory=DependenciesConfig)
     webhooks: WebhooksConfig = field(default_factory=WebhooksConfig)
     extensions: ExtensionsConfig = field(default_factory=ExtensionsConfig)
+    plugins: list[str] = field(default_factory=list)
 
 
 def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
@@ -139,6 +140,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     dep = data.get("dependencies", {})
     wh = data.get("webhooks", {})
     ext = data.get("extensions", {})
+    plg = data.get("plugins", [])
 
     source_root = out.get("source_root", "src")
     models_rel = out.get("models", "src/generated/models")
@@ -225,6 +227,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             filters=ext.get("filters") if isinstance(ext, dict) else None,
             globals=ext.get("globals") if isinstance(ext, dict) else None,
         ),
+        plugins=list(plg) if isinstance(plg, list) else [],
     )
 
 

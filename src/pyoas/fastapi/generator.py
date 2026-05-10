@@ -51,6 +51,9 @@ _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 class RouterGenerator:
     def __init__(self, config: Config) -> None:
         self._config = config
+        from pyoas.core.plugins import load_plugins
+
+        self._plugins = load_plugins(config)
 
     def generate(
         self,
@@ -256,9 +259,18 @@ class RouterGenerator:
         )
         context["spec_hash"] = spec_hash
         router_src = renderer.render("router.py.jinja2", context)
-        (output_root / f"{tag_to_dirname(tag)}.py").write_text(
-            router_src, encoding="utf-8"
-        )
+        out_path = output_root / f"{tag_to_dirname(tag)}.py"
+        for plugin in self._plugins:
+            result = plugin.on_router_file_written(tag, str(out_path), router_src)
+            if not result:
+                from pyoas.core.plugins import PluginError
+
+                raise PluginError(
+                    f"Plugin {plugin.name!r} returned empty content from"
+                    f" on_router_file_written for tag {tag!r}"
+                )
+            router_src = result
+        out_path.write_text(router_src, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

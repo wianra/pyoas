@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from pyoas.core.parsed_spec import ParsedSpec
 
 import typer
 
@@ -55,6 +58,22 @@ def _tag_filter(tags: str | None) -> list[str] | None:
     if tags is None:
         return None
     return [t.strip() for t in tags.split(",") if t.strip()]
+
+
+def _run_spec_loaded_hooks(plugins: list, parsed: ParsedSpec) -> ParsedSpec:
+    """Pass spec through each plugin's on_spec_loaded hook.
+
+    Returns the original ParsedSpec unchanged when no plugin modifies the dicts
+    (identity check), otherwise creates a new frozen ParsedSpec.
+    """
+    from pyoas.core.parsed_spec import ParsedSpec as _PS
+
+    raw, resolved = parsed.raw, parsed.resolved
+    for plugin in plugins:
+        raw, resolved = plugin.on_spec_loaded(raw, resolved)
+    if raw is parsed.raw and resolved is parsed.resolved:
+        return parsed
+    return _PS(raw=raw, resolved=resolved, path=parsed.path)
 
 
 @app.command()
@@ -117,6 +136,7 @@ webhooks:
 # extensions:
 #   filters: null  # e.g. "myapp.pyoas_extensions:custom_filters"
 #   globals: null  # e.g. "myapp.pyoas_extensions:custom_globals"
+# plugins: []  # e.g. ["myapp.plugin:MyPlugin"]
 """
     out.write_text(content, encoding="utf-8")
     typer.echo(f"Created {output}")
@@ -140,10 +160,17 @@ def models(
         )
         raise typer.Exit(1)
 
+    from pyoas.core.parsed_spec import ParsedSpec
+    from pyoas.core.plugins import load_plugins
+
+    cfg = _load_cfg(config)
     callback = None if quiet else lambda msg: typer.echo(msg, err=True)
-    written = ModelGenerator(_load_cfg(config)).generate(
+    plugins = load_plugins(cfg)
+    parsed = _run_spec_loaded_hooks(plugins, ParsedSpec.from_config(cfg))
+    written = ModelGenerator(cfg).generate(
         tag_filter=_tag_filter(tags),
         clean=clean,
+        parsed_spec=parsed,
         progress_callback=callback,
         verbose=verbose,
     )
@@ -170,10 +197,17 @@ def fastapi(
         )
         raise typer.Exit(1)
 
+    from pyoas.core.parsed_spec import ParsedSpec
+    from pyoas.core.plugins import load_plugins
+
+    cfg = _load_cfg(config)
     callback = None if quiet else lambda msg: typer.echo(msg, err=True)
-    written = RouterGenerator(_load_cfg(config)).generate(
+    plugins = load_plugins(cfg)
+    parsed = _run_spec_loaded_hooks(plugins, ParsedSpec.from_config(cfg))
+    written = RouterGenerator(cfg).generate(
         tag_filter=_tag_filter(tags),
         clean=clean,
+        parsed_spec=parsed,
         progress_callback=callback,
         verbose=verbose,
     )
@@ -238,10 +272,12 @@ def generate(
         raise typer.Exit(1)
 
     from pyoas.core.parsed_spec import ParsedSpec
+    from pyoas.core.plugins import load_plugins
 
     cfg = _load_cfg(config)
     tag_filter = _tag_filter(tags)
-    parsed = ParsedSpec.from_config(cfg)
+    plugins = load_plugins(cfg)
+    parsed = _run_spec_loaded_hooks(plugins, ParsedSpec.from_config(cfg))
     callback = None if quiet else lambda msg: typer.echo(msg, err=True)
 
     model_gen = ModelGenerator(cfg)  # type: ignore[possibly-undefined]
@@ -323,6 +359,15 @@ def generate(
             )
 
     _print_summary(summary)
+
+    if plugins:
+        stats: dict = {
+            "tags": list(tag_filter or []),
+            "files_written": len(model_written) + len(router_written),
+            "skipped": 0,
+        }
+        for plugin in plugins:
+            plugin.on_generate_complete(stats)
 
 
 @app.command()
