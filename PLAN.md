@@ -694,12 +694,27 @@ Both are optional. The module is loaded at render time via `importlib`.
 
 ---
 
-### T4-B · SQLAlchemy 2.0 model output target
+### ~~T4-B · SQLAlchemy 2.0 model output target~~ — CANCELLED
 
-**Problem.** Projects that use both an OpenAPI spec and a database need to
+> **Decision (2026-05-10):** T4-B will not be implemented. OpenAPI describes
+> the API contract (wire format); SQLAlchemy models describe the persistence
+> contract (DB schema). These two layers diverge in almost every non-trivial
+> project: API responses are denormalized projections while DB tables are
+> normalized, computed fields have no stored column, audit/soft-delete/tenant
+> columns are never in the API spec, and OAS `oneOf`/arrays/nested objects map
+> to inheritance hierarchies or join tables — not simple columns. The generated
+> output would require such heavy rework that it provides negative value.
+> A scaffold-once model (like `services/`) was considered but rejected for the
+> same reason: the structural mismatch means users spend more time unwinding
+> generated code than writing from scratch.
+> **T4-D (plugin architecture) is the better investment** — it makes pyoas
+> extensible as a platform; an SA generator can be a community plugin rather
+> than a first-party opinion.
+
+~~**Problem.** Projects that use both an OpenAPI spec and a database need to
 maintain Pydantic models and SQLAlchemy models separately, leading to
 duplication and drift. `pyoas[sqlalchemy]` would generate `DeclarativeBase`
-models from the same spec.
+models from the same spec.~~
 
 **Design decisions (resolved here so implementation is unambiguous).**
 
@@ -782,14 +797,14 @@ extra), `core/cli.py` (generate command wiring), new
    and FK columns appear correctly. Separate unit tests for
    `schema_to_column_type`.
 
-- [ ] `SQLAlchemyConfig` + `Config` field
-- [ ] `models/sqlalchemy_type_mapper.py` with unit tests
-- [ ] Relationship detector logic
-- [ ] `sqlalchemy_model.py.jinja2` template
-- [ ] `SQLAlchemyGenerator` class with cache support
-- [ ] Wire into `generate` + `models` CLI commands
-- [ ] Snapshot tests against existing fixtures
-- [ ] `pyoas[sqlalchemy]` optional extra in `pyproject.toml`
+- ~~[ ] `SQLAlchemyConfig` + `Config` field~~
+- ~~[ ] `models/sqlalchemy_type_mapper.py` with unit tests~~
+- ~~[ ] Relationship detector logic~~
+- ~~[ ] `sqlalchemy_model.py.jinja2` template~~
+- ~~[ ] `SQLAlchemyGenerator` class with cache support~~
+- ~~[ ] Wire into `generate` + `models` CLI commands~~
+- ~~[ ] Snapshot tests against existing fixtures~~
+- ~~[ ] `pyoas[sqlalchemy]` optional extra in `pyproject.toml`~~
 
 ---
 
@@ -880,15 +895,15 @@ output formatters), `core/cli.py`.
    diff petstore v3.0 against a hand-modified copy with one operation removed
    and one field added; assert correct classification.
 
-- [ ] `SpecDiff` + `OperationChange` + `SchemaChange` dataclasses
-- [ ] `diff_specs()` in `core/differ.py`
-- [ ] `classify_changes()` breaking-change rules
-- [ ] `core/migrate.py` — load + resolve + format + exit code
-- [ ] Text formatter (coloured, grouped)
-- [ ] JSON formatter
-- [ ] Wire into `core/cli.py`
-- [ ] Unit tests for differ + classifier
-- [ ] Integration test with modified petstore fixture
+- [x] `SpecDiff` + `OperationChange` + `SchemaChange` dataclasses
+- [x] `diff_specs()` in `core/differ.py`
+- [x] `classify_changes()` breaking-change rules
+- [x] `core/migrate.py` — load + resolve + format + exit code
+- [x] Text formatter (coloured, grouped)
+- [x] JSON formatter
+- [x] Wire into `core/cli.py`
+- [x] Unit tests for differ + classifier
+- [x] Integration test with modified petstore fixture
 
 ---
 
@@ -995,15 +1010,15 @@ hooks after write), `core/cli.py` (load + validate plugins), `core/doctor.py`
    `importlib.metadata.entry_points`). Doctor test: assert `plugin_load` check
    catches bad module path.
 
-- [ ] `Plugin` Protocol + `PluginLoader` in `core/plugins.py`
-- [ ] `plugins: list[str]` in `Config`
-- [ ] `plugin_load` doctor check
-- [ ] Hook calls in `ModelGenerator` (after file write)
-- [ ] Hook calls in `RouterGenerator` (after file write)
-- [ ] `on_spec_loaded` hook in CLI generate commands
-- [ ] `on_generate_complete` hook in CLI generate command
-- [ ] Tests (hook invocation + entry-point discovery + doctor check)
-- [ ] Example plugin in `examples/` showing import injection use-case
+- [x] `Plugin` Protocol + `PluginLoader` in `core/plugins.py`
+- [x] `plugins: list[str]` in `Config`
+- [x] `plugin_load` doctor check
+- [x] Hook calls in `ModelGenerator` (after file write)
+- [x] Hook calls in `RouterGenerator` (after file write)
+- [x] `on_spec_loaded` hook in CLI generate commands
+- [x] `on_generate_complete` hook in CLI generate command
+- [x] Tests (hook invocation + entry-point discovery + doctor check)
+- [x] Example plugin in `examples/` showing import injection use-case
 
 ---
 
@@ -1020,7 +1035,7 @@ These apply across all tiers and should be kept in mind during implementation.
 | Template override contract | Any variable added to a template context must be documented; user overrides rely on the contract |
 | Type annotations | All new functions must be fully typed; `uv run mypy src/` must pass |
 | Ruff | `uv run ruff check src/` must pass; line length 88, select E F I UP |
-| T4 ordering | T4-A is independent. T4-C is independent. T4-B can ship before T4-D. T4-D should be last (it wraps around everything). |
+| T4 ordering | T4-A is independent. T4-C is independent. T4-B cancelled. T4-D is next and last. |
 
 ---
 
@@ -1034,5 +1049,5 @@ These apply across all tiers and should be kept in mind during implementation.
 | `0.3.0` | T2-F + T3-A through T3-F |
 | `0.3.1` | T3-G (extended doctor checks — patch, no new generation output) |
 | `0.4.0` | T4-A (filter extensions) + T4-C (`pyoas migrate`) |
-| `0.5.0` | T4-B (SQLAlchemy target) |
-| `0.6.0` | T4-D (plugin architecture) |
+| ~~`0.5.0`~~ | ~~T4-B (SQLAlchemy target)~~ — cancelled |
+| `0.5.0` | T4-D (plugin architecture) |
