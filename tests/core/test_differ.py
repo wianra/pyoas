@@ -428,3 +428,66 @@ def test_migrate_missing_spec_exits_nonzero(tmp_path: Path) -> None:
     spec = str(FIXTURES / "petstore_3.0.yaml")
     result = runner.invoke(app, ["migrate", spec, str(tmp_path / "nonexistent.yaml")])
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# _load_spec — URL loading coverage
+# ---------------------------------------------------------------------------
+
+
+def test_load_spec_from_http_url_success() -> None:
+    """_load_spec downloads content via urllib and parses the YAML."""
+    from unittest.mock import MagicMock, patch
+
+    from pyoas.core.migrate import _load_spec
+
+    yaml_content = (FIXTURES / "petstore_3.0.yaml").read_bytes()
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = yaml_content
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        spec = _load_spec("https://example.com/openapi.yaml")
+
+    assert "paths" in spec
+
+
+def test_load_spec_from_http_url_download_failure() -> None:
+    """_load_spec raises ValueError when urlopen raises."""
+    from unittest.mock import patch
+
+    from pyoas.core.migrate import _load_spec
+
+    with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+        try:
+            _load_spec("https://example.com/openapi.yaml")
+            assert False, "expected ValueError"
+        except ValueError as exc:
+            assert "Failed to download" in str(exc)
+
+
+def test_load_spec_missing_file_raises() -> None:
+    """_load_spec raises FileNotFoundError for a non-existent local path."""
+    from pyoas.core.migrate import _load_spec
+
+    try:
+        _load_spec("/does/not/exist.yaml")
+        assert False, "expected FileNotFoundError"
+    except FileNotFoundError as exc:
+        assert "not found" in str(exc).lower()
+
+
+def test_migrate_error_on_old_spec_exits_one(tmp_path: Path) -> None:
+    """run_migrate exits 1 and prints error when the old spec cannot be loaded."""
+    new = str(FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["migrate", str(tmp_path / "missing_old.yaml"), new])
+    assert result.exit_code == 1
+
+
+def test_migrate_error_on_new_spec_exits_one(tmp_path: Path) -> None:
+    """run_migrate exits 1 and prints error when the new spec cannot be loaded."""
+    old = str(FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["migrate", old, str(tmp_path / "missing_new.yaml")])
+    assert result.exit_code == 1
