@@ -1,3 +1,13 @@
+## v0.4.1 (2026-05-11)
+
+### Fix
+
+- **docs**: update README with new features and config options
+- **docs**: add plugin example README
+- **tests**: add migrate URL loading coverage
+- **tests**: add CLI coverage for doctor and fix commands
+- **core**: export new modules from pyoas.core.__init__
+
 ## v0.4.0 (2026-05-10)
 
 ### Feat
