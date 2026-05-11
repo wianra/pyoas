@@ -877,3 +877,119 @@ def test_generate_skips_both_generators_on_second_run(tmp_path: Path) -> None:
     assert "[models]" in second.output
     assert "[routers]" in second.output
     assert "unchanged, skipped" in second.output
+
+
+# ---------------------------------------------------------------------------
+# doctor
+# ---------------------------------------------------------------------------
+
+
+def test_doctor_no_issues_exits_zero(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    assert "No issues found" in result.output
+
+
+def test_doctor_with_issues_exits_one(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "error" in result.output.lower()
+
+
+def test_doctor_json_valid_spec_emits_ok(tmp_path: Path) -> None:
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["status"] == "ok"
+    assert data["issues"] == []
+
+
+def test_doctor_json_with_errors_emits_status_error(tmp_path: Path) -> None:
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data["status"] == "error"
+    assert any(i["level"] == "error" for i in data["issues"])
+
+
+def test_doctor_json_issues_have_required_fields(tmp_path: Path) -> None:
+    import json
+
+    cfg = _write_config(tmp_path, FIXTURES / "doctor_issues.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg), "--json"])
+    data = json.loads(result.output)
+    for issue in data["issues"]:
+        assert "level" in issue
+        assert "check" in issue
+        assert "message" in issue
+        assert "location" in issue
+
+
+def test_doctor_missing_spec_exits_one(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, tmp_path / "nonexistent.yaml")
+    result = runner.invoke(app, ["doctor", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "Error" in result.output
+
+
+# ---------------------------------------------------------------------------
+# fix
+# ---------------------------------------------------------------------------
+
+
+def test_fix_no_fixable_issues(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["fix", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    assert "No fixable issues" in result.output
+
+
+def test_fix_dry_run_shows_diff_without_writing(tmp_path: Path) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text((FIXTURES / "fixable_spec.yaml").read_text())
+    original = spec.read_text()
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["fix", "--config", str(cfg), "--dry-run"])
+    assert result.exit_code == 0, result.output
+    # --dry-run must not modify the file
+    assert spec.read_text() == original
+    # but must show what would change
+    assert "would be applied" in result.output
+
+
+def test_fix_writes_spec_in_place(tmp_path: Path) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text((FIXTURES / "fixable_spec.yaml").read_text())
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["fix", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    assert "fix(es) applied" in result.output
+    # File must have been modified
+    assert spec.read_text() != (FIXTURES / "fixable_spec.yaml").read_text()
+
+
+def test_fix_reports_action_kinds(tmp_path: Path) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text((FIXTURES / "fixable_spec.yaml").read_text())
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["fix", "--config", str(cfg)])
+    # fixable_spec has missing op IDs, duplicates, and tag collision
+    assert (
+        "assign_operation_id" in result.output or "dedupe_operation_id" in result.output
+    )
+
+
+def test_fix_tag_casing_lower(tmp_path: Path) -> None:
+    spec = tmp_path / "spec.yaml"
+    spec.write_text((FIXTURES / "fixable_spec.yaml").read_text())
+    cfg = _write_config(tmp_path, spec)
+    result = runner.invoke(app, ["fix", "--config", str(cfg), "--tag-casing", "lower"])
+    assert result.exit_code == 0, result.output
