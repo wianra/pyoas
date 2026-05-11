@@ -3,9 +3,9 @@ default_language_version:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.12  # Use the latest stable version
+    rev: v0.15.12
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
         exclude: \.ambr$
       - id: ruff-format

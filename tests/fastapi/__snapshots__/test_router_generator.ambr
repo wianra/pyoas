@@ -5,7 +5,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body, File, Form, UploadFile
+  
   from generated.models.files import OpaqueUpload
   
   router = APIRouter(tags=["files"])
@@ -55,6 +57,7 @@
   from __future__ import annotations
   
   from fastapi import APIRouter
+  
   from generated.models.fleet import DriverListItem
   from generated.models.shared import Paginated
   
@@ -76,6 +79,7 @@
   from __future__ import annotations
   
   from fastapi import APIRouter
+  
   from generated.models.users import UserListItem
   from generated.models.shared import Paginated
   
@@ -97,7 +101,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.reports import CreateReportBody, CreateReportResponse
   
   router = APIRouter(tags=["reports"])
@@ -120,7 +126,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.items import CreatedItem, Item
   
   router = APIRouter(tags=["items"])
@@ -168,8 +176,10 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Path
   import uuid
+  
+  from fastapi import APIRouter, Path
+  
   from generated.models.orders import Order
   
   router = APIRouter(tags=["orders"])
@@ -208,8 +218,10 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Path
   import uuid
+  
+  from fastapi import APIRouter, Path
+  
   from generated.models.users import User
   
   router = APIRouter(tags=["users"])
@@ -238,7 +250,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body, Path
+  
   from generated.models.default import CreateItemRequest, Item
   
   router = APIRouter(tags=["default"])
@@ -283,7 +297,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.default import Req, Res
   
   router = APIRouter(tags=["default"])
@@ -307,7 +323,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body, Path, Query
+  
   from generated.models.pets import CreatePetRequest, Pet, PetList
   
   router = APIRouter(tags=["Pets"])
@@ -357,6 +375,7 @@
   
   from fastapi import APIRouter
   
+  
   router = APIRouter(tags=["Store"])
   
   
@@ -375,7 +394,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body, Path, Query
+  
   from generated.models.pets import CreatePetRequest, Pet, PetList
   
   router = APIRouter(tags=["pets"])
@@ -414,7 +435,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.documents import Document, DocumentWrite
   
   router = APIRouter(tags=["documents"])
@@ -445,7 +468,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.items import Item
   
   router = APIRouter(tags=["items"])
@@ -475,9 +500,11 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Depends, Body
-  from generated.models.items import Item
+  
+  from fastapi import APIRouter, Body, Depends
   from myapp.deps.auth import AuthContext, get_auth_context
+  
+  from generated.models.items import Item
   
   router = APIRouter(tags=["items"])
   
@@ -517,7 +544,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body
+  
   from generated.models.subscriptions import CreateSubscriptionRequest, Subscription, SubscriptionEvent
   
   router = APIRouter(tags=["subscriptions"])
@@ -549,10 +578,12 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Depends, Body
-  from generated.models.items import Item
+  
+  from fastapi import APIRouter, Body, Depends
   from myapp.services.items import ItemsService, get_items_service
   from myapp.deps.auth import AuthContext, get_auth_context
+  
+  from generated.models.items import Item
   
   router = APIRouter(tags=["items"])
   
@@ -584,10 +615,12 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Depends, Path
   import uuid
-  from generated.models.orders import Order
+  
+  from fastapi import APIRouter, Depends, Path
   from myapp.services.orders import OrdersService, get_orders_service
+  
+  from generated.models.orders import Order
   
   router = APIRouter(tags=["orders"])
   
@@ -618,10 +651,12 @@
   from __future__ import annotations
   
   from typing import Annotated
-  from fastapi import APIRouter, Depends, Path
   import uuid
-  from generated.models.users import User
+  
+  from fastapi import APIRouter, Depends, Path
   from myapp.services.users import UsersService, get_users_service
+  
+  from generated.models.users import User
   
   router = APIRouter(tags=["users"])
   
@@ -743,7 +778,9 @@
   from __future__ import annotations
   
   from typing import Annotated
+  
   from fastapi import APIRouter, Body, Path
+  
   from generated.models.pets import NewPet
   
   router = APIRouter(tags=["pets"])

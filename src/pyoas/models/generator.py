@@ -312,7 +312,7 @@ class ModelGenerator:
         tag_entries = [
             {
                 "dirname": tag_to_dirname(t),
-                "model_names": tag_model_names.get(t, []),
+                "model_names": sorted(tag_model_names.get(t, [])),
             }
             for t in all_tags
         ]

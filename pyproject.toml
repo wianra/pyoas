@@ -50,6 +50,9 @@ line-length = 88
 select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
 
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true

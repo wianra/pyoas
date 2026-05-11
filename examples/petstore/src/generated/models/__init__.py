@@ -3,34 +3,21 @@ from __future__ import annotations
 
 from .pets import (
     CreatePetRequest as CreatePetRequest,
-)
-from .pets import (
+    Pet as Pet,
     PetList as PetList,
-)
-from .pets import (
     PetRead as PetRead,
-)
-from .pets import (
     PetWrite as PetWrite,
-)
-from .pets import (
     UpdatePetRequest as UpdatePetRequest,
 )
 from .store import (
     CreateOrderRequest as CreateOrderRequest,
-)
-from .store import (
+    Order as Order,
     OrderRead as OrderRead,
-)
-from .store import (
     OrderWrite as OrderWrite,
 )
 from .users import (
     CreateUserRequest as CreateUserRequest,
-)
-from .users import (
+    User as User,
     UserRead as UserRead,
-)
-from .users import (
     UserWrite as UserWrite,
 )

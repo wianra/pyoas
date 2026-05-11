@@ -5,23 +5,27 @@ from __future__ import annotations
 {% if _typing_names %}
 from typing import {{ _typing_names | join(", ") }}
 {% endif %}
-from fastapi import APIRouter{% if service_import_path or (dep_import_path and has_any_security) %}, Depends{% endif %}{% if needs_fastapi_response %}, Response{% endif %}{% for cls in fastapi_param_classes %}, {{ cls }}{% endfor %}
-
 {% for imp in stdlib_imports %}
 {{ imp }}
 {% endfor %}
-{% for entry in tag_model_imports %}
-from {{ entry.module }} import {{ entry.names | join(", ") }}
-{% endfor %}
-{% for entry in shared_model_imports %}
-from {{ entry.module }} import {{ entry.names | join(", ") }}
-{% endfor %}
+{% if _typing_names or stdlib_imports %}
+
+{% endif %}
+{% set _fastapi_names = ["APIRouter"] + (["Depends"] if (service_import_path or (dep_import_path and has_any_security)) else []) + (["Response"] if needs_fastapi_response else []) + fastapi_param_classes %}
+from fastapi import {{ _fastapi_names | sort | join(", ") }}
 {% if service_import_path %}
 from {{ service_import_path }}.{{ tag_dirname }} import {{ service_class_name }}, {{ service_dep_fn }}
 {% endif %}
 {% if dep_import_path and has_any_security %}
 from {{ dep_import_path }}.auth import AuthContext, get_auth_context
 {% endif %}
+
+{% for entry in tag_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
+{% for entry in shared_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
 
 router = APIRouter(tags=["{{ tag }}"])
 {% if has_webhooks %}
