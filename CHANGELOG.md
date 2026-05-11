@@ -1,3 +1,9 @@
+## v0.4.2 (2026-05-11)
+
+### Fix
+
+- **templates**: fix import ordering and isort stability
+
 ## v0.4.1 (2026-05-11)
 
 ### Fix
