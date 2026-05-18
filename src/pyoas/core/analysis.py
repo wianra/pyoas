@@ -13,8 +13,71 @@ from typing import Any
 
 from .utils import to_pascal_case, to_snake_case
 
-# Matches "GenericName[TypeParam]" in schema titles (single-level, word chars only).
-_GENERIC_TITLE_RE = re.compile(r"^(\w+)\[(\w+)\]$")
+
+def _parse_generic_title(title: str) -> tuple[str, str] | None:
+    """Extract ``(generic_name, type_param)`` from ``'Name[TypeExpr]'``.
+
+    The *generic_name* must be a simple identifier (``\\w+``).  The
+    *type_param* is the full content of the outermost bracket pair and may
+    itself contain nested brackets (e.g. ``'list[Pet]'``).  Trailing
+    characters after the matched closing bracket are not allowed.
+
+    Returns ``None`` for any input that does not conform.
+    """
+    bracket = title.find("[")
+    if bracket < 1:
+        return None
+    generic_name = title[:bracket]
+    if not re.match(r"^\w+$", generic_name):
+        return None
+    depth = 0
+    for i, c in enumerate(title[bracket:], bracket):
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0:
+                if i != len(title) - 1:
+                    return None  # trailing characters after closing bracket
+                type_param = title[bracket + 1 : i]
+                return (generic_name, type_param) if type_param else None
+    return None  # unbalanced brackets
+
+
+def _extract_leaf_schema(type_param: str) -> tuple[str, bool] | None:
+    """Resolve the component schema name referenced by *type_param*.
+
+    Returns ``(leaf_schema_name, outer_is_list)`` where ``outer_is_list``
+    is ``True`` when *type_param* is a ``list[X]`` / ``List[X]`` wrapper.
+
+    - ``"Pet"``       → ``("Pet", False)``
+    - ``"list[Pet]"`` → ``("Pet", True)``
+
+    Returns ``None`` for expressions that are too complex to resolve
+    (e.g. ``"Dict[str, Any]"``).
+    """
+    if re.match(r"^\w+$", type_param):
+        return type_param, False
+    m = re.match(r"^[Ll]ist\[(\w+)\]$", type_param)
+    if m:
+        return m.group(1), True
+    return None
+
+
+def _type_param_to_identifier(type_param: str) -> str:
+    """Convert a type expression into a valid Python identifier fragment.
+
+    Examples::
+
+        "Pet"            → "Pet"
+        "list[Pet]"      → "ListPet"
+        "Dict[str, Any]" → "DictStrAny"
+    """
+    if re.match(r"^\w+$", type_param):
+        return type_param
+    parts = re.findall(r"[a-zA-Z][a-zA-Z0-9]*", type_param)
+    return "".join(p[0].upper() + p[1:] for p in parts)
+
 
 # OpenAPI constraint key → Pydantic v2 / FastAPI annotation kwarg name.
 # Single source of truth used by both model generation and router parameter handling.
@@ -233,14 +296,17 @@ def detect_generic_groups_global(
         if not isinstance(raw_schema, dict):
             continue
         title = raw_schema.get("title", "")
-        m = _GENERIC_TITLE_RE.match(title)
-        if not m:
+        parsed = _parse_generic_title(title)
+        if parsed is None:
             continue
-        generic_name, type_param = m.group(1), m.group(2)
-        # Require the type param itself to be a known component schema
-        if type_param not in raw_components_schemas:
+        generic_name, type_param = parsed
+        leaf_info = _extract_leaf_schema(type_param)
+        if leaf_info is None:
             continue
-        t_field = _find_t_field(raw_schema, type_param)
+        leaf_schema, _ = leaf_info
+        if leaf_schema not in raw_components_schemas:
+            continue
+        t_field = _find_t_field(raw_schema, leaf_schema)
         if t_field is None:
             continue
         by_generic.setdefault(generic_name, []).append(
@@ -300,7 +366,15 @@ def detect_generic_groups_global(
         first_schema_name = instances[0]["schema_name"]
         first_raw = raw_components_schemas[first_schema_name]
         first_type_param = instances[0]["type_param"]
-        t_field_name, t_is_list = _find_t_field(first_raw, first_type_param)  # type: ignore[misc]
+        _first_leaf, _first_outer_is_list = _extract_leaf_schema(first_type_param) or (
+            first_type_param,
+            False,
+        )
+        _raw_t_field = _find_t_field(first_raw, _first_leaf)
+        t_field_name, _raw_t_is_list = _raw_t_field  # type: ignore[misc]
+        # When the outer type param already wraps a list (e.g. list[Pet]),
+        # T is the whole list, so the base-class field should be T, not list[T].
+        t_is_list = _raw_t_is_list and not _first_outer_is_list
 
         # Collect tags for all instances to determine home_tag
         all_instance_tags: set[str] = set()

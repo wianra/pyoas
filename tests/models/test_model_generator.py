@@ -403,6 +403,57 @@ def test_generate_generic_paginated_no_trailing(
         assert "PagingResult_UserListItem = PagingResultUserListItem" in users_src
 
 
+def test_detect_generic_groups_list_type_param(
+    generic_paginated_list_param: Path,
+) -> None:
+    """Generic detection handles titles like 'Paginated[list[Pet]]'."""
+    from pyoas.core.parser import SpecParser
+    from pyoas.core.tags import extract_tags
+
+    spec_raw = SpecParser(str(generic_paginated_list_param)).load()
+    grouped_raw = extract_tags(spec_raw)
+    tag_map = build_schema_tag_map(spec_raw, grouped_raw)
+    raw_cs = spec_raw.get("components", {}).get("schemas", {})
+
+    groups = detect_generic_groups_global(raw_cs, tag_map)
+
+    assert "Paginated" in groups
+    grp = groups["Paginated"]
+    assert grp.t_field_name == "data"
+    # T = list[Pet], so the base-class field is 'data: T' (not 'data: list[T]')
+    assert grp.t_is_list is False
+    assert len(grp.instances) == 2
+    assert grp.home_tag is None
+
+
+def test_generate_generic_paginated_list_param(
+    generic_paginated_list_param: Path,
+) -> None:
+    """Schemas with 'list[X]' type params in title produce correct generic output."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(generic_paginated_list_param), tmp)
+        ModelGenerator(cfg).generate()
+
+        output = Path(tmp)
+        assert (output / "shared.py").exists()
+        assert (output / "pets.py").exists()
+        assert (output / "categories.py").exists()
+
+        shared_src = _read(output / "shared.py")
+        pets_src = _read(output / "pets.py")
+        categories_src = _read(output / "categories.py")
+
+        # Base class uses T directly (T already carries the list)
+        assert "class Paginated(BaseModel, Generic[T])" in shared_src
+        assert "data: T" in shared_src
+
+        # Clean aliases use sanitised identifier names
+        assert "PaginatedListPet = Paginated[list[Pet]]" in pets_src
+        assert "Paginated_list_Pet_ = PaginatedListPet" in pets_src
+        assert "PaginatedListCategory = Paginated[list[Category]]" in categories_src
+        assert "Paginated_list_Category_ = PaginatedListCategory" in categories_src
+
+
 def test_generate_read_write(read_write: Path, snapshot: SnapshotAssertion) -> None:
     """readOnly/writeOnly fields produce Read/Write split + original-name alias."""
     with tempfile.TemporaryDirectory() as tmp:

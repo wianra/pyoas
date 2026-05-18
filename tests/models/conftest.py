@@ -46,6 +46,11 @@ def generic_paginated_no_trailing(fixtures_dir: Path) -> Path:
 
 
 @pytest.fixture
+def generic_paginated_list_param(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "generic_paginated_list_param.yaml"
+
+
+@pytest.fixture
 def read_write(fixtures_dir: Path) -> Path:
     return fixtures_dir / "read_write.yaml"
 

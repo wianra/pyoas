@@ -1,0 +1,75 @@
+openapi: "3.0.3"
+info:
+  title: Generic Paginated List Param API
+  version: "1.0.0"
+
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      tags: [pets]
+      summary: List pets (paginated, list[T] type param)
+      responses:
+        "200":
+          description: Paginated pets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Paginated_list_Pet_"
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List categories (paginated, list[T] type param)
+      responses:
+        "200":
+          description: Paginated categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Paginated_list_Category_"
+
+components:
+  schemas:
+    Pet:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Paginated_list_Pet_:
+      type: object
+      title: "Paginated[list[Pet]]"
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Pet"
+        total:
+          type: integer
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Paginated_list_Category_:
+      type: object
+      title: "Paginated[list[Category]]"
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        total:
+          type: integer

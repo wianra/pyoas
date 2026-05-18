@@ -7,7 +7,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pyoas.core.analysis import _GenericGroup, has_circular_refs
+from pyoas.core.analysis import (
+    _GenericGroup,
+    _type_param_to_identifier,
+    has_circular_refs,
+)
 from pyoas.core.config import Config
 
 from .schema_renderer import _render_generic_base_schema, _render_schema
@@ -56,7 +60,7 @@ def _build_models_context(
             group = concrete_to_group[s["name"]]
             type_param = concrete_to_type_param[s["name"]]
             alias_type = f"{group.generic_name}[{type_param}]"
-            clean_name = group.generic_name + type_param
+            clean_name = group.generic_name + _type_param_to_identifier(type_param)
 
             # Primary clean alias: PaginatedDriverListItem = Paginated[DriverListItem]
             rendered_schemas.append(
