@@ -1,3 +1,9 @@
+## v0.5.0 (2026-05-18)
+
+### Feat
+
+- **scaffold**: add append-only router and model scaffolding
+
 ## v0.4.2 (2026-05-11)
 
 ### Fix
