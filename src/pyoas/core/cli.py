@@ -133,6 +133,16 @@ skills:
   services_pattern: none  # none | repository | domain
 webhooks:
   generate: false  # set to true to generate code for OAS 3.1 webhooks
+router_scaffold:
+  generate: false
+  output: src/routers
+  overwrite: false
+  drift_log: null
+model_scaffold:
+  generate: false
+  output: src/models
+  overwrite: false
+  drift_log: null
 # extensions:
 #   filters: null  # e.g. "myapp.pyoas_extensions:custom_filters"
 #   globals: null  # e.g. "myapp.pyoas_extensions:custom_globals"
@@ -346,6 +356,33 @@ def generate(
             detail = f"{svc_test_result.appended_items} added to {len(svc_test_result.appended_files)} file(s) ({files_str})"
         summary.append(("service tests", f"{svc_test_result.wrote} wrote", detail))
 
+    if cfg.router_scaffold.generate:
+        try:
+            from pyoas.fastapi import RouterScaffolder
+
+            rscaffold_result = RouterScaffolder(cfg).scaffold(tag_filter=tag_filter)
+            detail = ""
+            if rscaffold_result.appended_items:
+                files_str = ", ".join(rscaffold_result.appended_files)
+                detail = f"{rscaffold_result.appended_items} added to {len(rscaffold_result.appended_files)} file(s) ({files_str})"
+            summary.append(
+                ("router scaffolds", f"{rscaffold_result.wrote} wrote", detail)
+            )
+        except ImportError:
+            typer.echo(
+                "Error: pyoas[fastapi] extra is required for router scaffold.", err=True
+            )
+
+    if cfg.model_scaffold.generate:
+        from pyoas.models import ModelScaffolder
+
+        mscaffold_result = ModelScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        detail = ""
+        if mscaffold_result.appended_items:
+            files_str = ", ".join(mscaffold_result.appended_files)
+            detail = f"{mscaffold_result.appended_items} added to {len(mscaffold_result.appended_files)} file(s) ({files_str})"
+        summary.append(("model scaffolds", f"{mscaffold_result.wrote} wrote", detail))
+
     if cfg.skills.generate:
         try:
             from pyoas.claude import SkillScaffolder
@@ -454,6 +491,19 @@ def diff(
 
     if cfg.dependencies.generate:
         for item in _scaffold_dep_drift(cfg):
+            typer.echo(f"  [missing]  {item}")
+            changed.append(item)
+
+    if cfg.router_scaffold.generate:
+        try:
+            for item in _scaffold_router_drift(cfg, tag_filter):
+                typer.echo(f"  [missing]  {item}")
+                changed.append(item)
+        except ImportError:
+            pass
+
+    if cfg.model_scaffold.generate:
+        for item in _scaffold_model_drift(cfg, tag_filter):
             typer.echo(f"  [missing]  {item}")
             changed.append(item)
 
@@ -844,6 +894,118 @@ def scaffold_webhooks(
         typer.echo(f"    app.webhooks.include_router({dirname}_webhooks)")
 
 
+@scaffold_app.command("routers")
+def scaffold_routers(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    tags: Annotated[str | None, _TAGS_OPTION] = None,
+) -> None:
+    """Scaffold router stub files (skips existing files unless overwrite: true in config)."""
+    try:
+        from pyoas.fastapi import RouterScaffolder
+    except ImportError:
+        typer.echo(
+            'Error: pyoas[fastapi] extra is required. Run: pip install "pyoas[fastapi]"',
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    RouterScaffolder(_load_cfg(config)).scaffold(tag_filter=_tag_filter(tags))
+
+
+@scaffold_app.command("models")
+def scaffold_models(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    tags: Annotated[str | None, _TAGS_OPTION] = None,
+) -> None:
+    """Scaffold model stub files (skips existing files unless overwrite: true in config)."""
+    from pyoas.models import ModelScaffolder
+
+    ModelScaffolder(_load_cfg(config)).scaffold(tag_filter=_tag_filter(tags))
+
+
+@app.command("router-drift")
+def router_drift(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    tags: Annotated[str | None, _TAGS_OPTION] = None,
+) -> None:
+    """Report router scaffold drift without writing anything. Exits 1 if drift is found."""
+    try:
+        from pyoas.fastapi.routerscaffold import detect_router_drift
+    except ImportError:
+        typer.echo(
+            'Error: pyoas[fastapi] extra is required. Run: pip install "pyoas[fastapi]"',
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    cfg = _load_cfg(config)
+    tag_filter = _tag_filter(tags)
+
+    if not cfg.router_scaffold.generate:
+        typer.echo(
+            "Router scaffold is not configured. Set router_scaffold.generate: true in config."
+        )
+        return
+
+    items = detect_router_drift(cfg, tag_filter=tag_filter)
+
+    for item in items:
+        if item.kind == "missing_file":
+            typer.echo(f"  [missing file]   {item.file}")
+        elif item.kind == "missing_endpoint":
+            typer.echo(f"  [missing]        {item.file}::{item.endpoint}")
+        elif item.kind == "orphaned_endpoint":
+            typer.echo(f"  [orphaned]       {item.file}::{item.endpoint}")
+        elif item.kind == "signature_changed":
+            typer.echo(f"  [sig changed]    {item.file}::{item.endpoint}")
+            for line in item.detail.split("\n")[1:]:
+                typer.echo(f"    {line.strip()}")
+
+    if items:
+        typer.echo(
+            f"\n  {len(items)} drift item(s) found. Run pyoas scaffold routers to fix."
+        )
+        raise typer.Exit(1)
+    else:
+        typer.echo("No drift detected.")
+
+
+@app.command("model-drift")
+def model_drift(
+    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
+    tags: Annotated[str | None, _TAGS_OPTION] = None,
+) -> None:
+    """Report model scaffold drift without writing anything. Exits 1 if drift is found."""
+    from pyoas.models.scaffolder import detect_model_drift
+
+    cfg = _load_cfg(config)
+    tag_filter = _tag_filter(tags)
+
+    if not cfg.model_scaffold.generate:
+        typer.echo(
+            "Model scaffold is not configured. Set model_scaffold.generate: true in config."
+        )
+        return
+
+    items = detect_model_drift(cfg, tag_filter=tag_filter)
+
+    for item in items:
+        if item.kind == "missing_file":
+            typer.echo(f"  [missing file]   {item.file}")
+        elif item.kind == "missing_class":
+            typer.echo(f"  [missing]        {item.file}::{item.schema}")
+        elif item.kind == "orphaned_class":
+            typer.echo(f"  [orphaned]       {item.file}::{item.schema}")
+
+    if items:
+        typer.echo(
+            f"\n  {len(items)} drift item(s) found. Run pyoas scaffold models to fix."
+        )
+        raise typer.Exit(1)
+    else:
+        typer.echo("No drift detected.")
+
+
 @app.command()
 def watch(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
@@ -902,6 +1064,19 @@ def watch(
 
                 TestScaffolder(cfg).scaffold(tag_filter=tag_filter)
                 ServiceTestScaffolder(cfg).scaffold(tag_filter=tag_filter)
+
+            if cfg.router_scaffold.generate:
+                try:
+                    from pyoas.fastapi import RouterScaffolder
+
+                    RouterScaffolder(cfg).scaffold(tag_filter=tag_filter)
+                except ImportError:
+                    pass
+
+            if cfg.model_scaffold.generate:
+                from pyoas.models import ModelScaffolder
+
+                ModelScaffolder(cfg).scaffold(tag_filter=tag_filter)
 
             if cfg.skills.generate:
                 try:
@@ -984,3 +1159,31 @@ def _scaffold_dep_drift(cfg) -> list[str]:  # noqa: ANN001
     if not auth_file.exists():
         missing.append(str(auth_file))
     return missing
+
+
+def _scaffold_router_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noqa: ANN001
+    """Return router file paths / endpoint refs that would be created or appended."""
+    from pyoas.fastapi.routerscaffold import detect_router_drift
+
+    items = detect_router_drift(cfg, tag_filter=tag_filter)
+    result: list[str] = []
+    for item in items:
+        if item.kind == "missing_file":
+            result.append(item.file)
+        elif item.kind == "missing_endpoint":
+            result.append(f"{item.file}::{item.endpoint}")
+    return result
+
+
+def _scaffold_model_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noqa: ANN001
+    """Return model file paths / class refs that would be created or appended."""
+    from pyoas.models.scaffolder import detect_model_drift
+
+    items = detect_model_drift(cfg, tag_filter=tag_filter)
+    result: list[str] = []
+    for item in items:
+        if item.kind == "missing_file":
+            result.append(item.file)
+        elif item.kind == "missing_class":
+            result.append(f"{item.file}::{item.schema}")
+    return result

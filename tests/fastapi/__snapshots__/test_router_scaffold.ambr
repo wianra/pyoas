@@ -1,0 +1,42 @@
+# serializer version: 1
+# name: test_scaffold_petstore_30_first_run[pets_scaffold_30_first_run]
+  '''
+  # Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
+  from __future__ import annotations
+  
+  from typing import Annotated
+  
+  from fastapi import APIRouter, Body, Path, Query
+  
+  from generated.models.pets import CreatePetRequest, Pet, PetList
+  
+  router = APIRouter(tags=["Pets"])
+  
+  
+  @router.get("/pets", response_model=PetList, summary="List all pets")
+  async def list_pets(
+      *,
+      limit: Annotated[int | None, Query(ge=1, le=100)] = None,
+  ) -> PetList:
+      raise NotImplementedError
+  
+  
+  @router.post("/pets", response_model=Pet, status_code=201, summary="Create a pet")
+  async def create_pet(
+      *,
+      body: Annotated[CreatePetRequest, Body()],
+  ) -> Pet:
+      raise NotImplementedError
+  
+  
+  @router.get("/pets/{petId}", response_model=Pet, summary="Get a pet by ID")
+  async def get_pet(
+      *,
+      pet_id: Annotated[int, Path(alias="petId")],
+  ) -> Pet:
+      raise NotImplementedError
+  
+  
+  
+  '''
+# ---

@@ -1,0 +1,60 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
+from __future__ import annotations
+
+{% set _typing_names = (["Any"] if needs_any else []) + (["Annotated"] if needs_annotated else []) + (["Literal"] if needs_literal else []) %}
+{% if _typing_names %}
+from typing import {{ _typing_names | join(", ") }}
+{% endif %}
+{% for imp in stdlib_imports %}
+{{ imp }}
+{% endfor %}
+{% if _typing_names or stdlib_imports %}
+
+{% endif %}
+{% set _needs_depends = dep_import_path and has_any_security %}
+{% set _fastapi_names = ["APIRouter"] + (["Depends"] if _needs_depends else []) + (["Response"] if needs_fastapi_response else []) + fastapi_param_classes %}
+from fastapi import {{ _fastapi_names | sort | join(", ") }}
+{% if dep_import_path and has_any_security %}
+from {{ dep_import_path }}.auth import AuthContext, get_auth_context
+{% endif %}
+
+{% for entry in tag_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
+{% for entry in shared_model_imports %}
+from {{ entry.module }} import {{ entry.names | join(", ") }}
+{% endfor %}
+
+router = APIRouter(tags=["{{ tag }}"])
+{% if has_webhooks %}
+webhooks = APIRouter(tags=["{{ tag }}"])
+{% endif %}
+
+
+{% for op in operations %}
+{% if op.required_scopes %}
+# Required scopes: {{ op.required_scopes | join(", ") }}
+{% endif %}
+@{% if op.is_webhook %}webhooks{% else %}router{% endif %}.{{ op.method }}("{{ op.path }}"{% if op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model={{ op.response_type }}{% endif %}{% if op.status_code != 200 %}, status_code={{ op.status_code }}{% endif %}{% if op.deprecated %}, deprecated=True{% endif %}{% if op.summary %}, summary="{{ op.summary }}"{% endif %}{% if response_model_exclude_none and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_none=True{% endif %}{% if response_model_exclude_unset and op.response_type and op.response_type != "None" and op.response_type != "Response" %}, response_model_exclude_unset=True{% endif %})
+{% set _has_kwonly_params = op.parameters or (op.has_security and dep_import_path) %}
+async def {{ op.function_name }}(
+{% if _has_kwonly_params %}    *,
+{% endif %}
+{% for param in op.parameters %}
+    {{ param.name }}: {{ param.python_type }}{% if param.default_repr is not none %} = {{ param.default_repr }}{% elif not param.required %} = None{% endif %},
+{% endfor %}
+{% if op.has_security %}
+{% if dep_import_path %}
+    current_user: AuthContext = Depends(get_auth_context),
+{% else %}
+    # TODO: add authentication dependency, e.g.: current_user = Depends(get_auth_context)
+{% endif %}
+{% endif %}
+) -> {{ op.response_type if op.response_type else "None" }}:
+{% if op.description %}
+    """{{ op.description }}"""
+{% endif %}
+    raise NotImplementedError
+
+
+{% endfor %}

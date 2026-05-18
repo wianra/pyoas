@@ -1,0 +1,63 @@
+# serializer version: 1
+# name: test_scaffold_petstore_30_first_run[pets_models_scaffold_30_first_run]
+  '''
+  # Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
+  from __future__ import annotations
+  
+  from typing import Literal
+  
+  from pydantic import BaseModel, ConfigDict, Field
+  
+  
+  class PetList(BaseModel):
+      model_config = ConfigDict(
+          extra="ignore",
+          frozen=False,
+          populate_by_name=True,
+      )
+  
+      items: list[Pet] = Field(default=...)
+      total: int | None = Field(default=None)
+  
+  class PetRead(BaseModel):
+      """A pet in the store"""
+  
+      model_config = ConfigDict(
+          extra="ignore",
+          frozen=False,
+          populate_by_name=True,
+      )
+  
+      id: int = Field(default=...)
+      name: str = Field(default=..., description="The pet's name")
+      status: Literal["available", "pending", "sold"] = Field(default='available')
+      tag: str | None = Field(default=None)
+  
+  class PetWrite(BaseModel):
+      """A pet in the store"""
+  
+      model_config = ConfigDict(
+          extra="forbid",
+          frozen=False,
+          populate_by_name=True,
+      )
+  
+      name: str = Field(default=..., description="The pet's name")
+      status: Literal["available", "pending", "sold"] = Field(default='available')
+      tag: str | None = Field(default=None)
+  
+  class CreatePetRequest(BaseModel):
+      model_config = ConfigDict(
+          extra="forbid",
+          frozen=False,
+          populate_by_name=True,
+      )
+  
+      name: str = Field(default=...)
+      tag: str | None = Field(default=None)
+  
+  Pet = PetRead
+  
+  
+  '''
+# ---
