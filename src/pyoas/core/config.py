@@ -85,6 +85,22 @@ class RouterConfig:
 
 
 @dataclass
+class RouterScaffoldConfig:
+    generate: bool = False
+    output: str = "src/routers"
+    overwrite: bool = False
+    drift_log: str | None = None  # path to append drift warnings; None → console only
+
+
+@dataclass
+class ModelScaffoldConfig:
+    generate: bool = False
+    output: str = "src/models"
+    overwrite: bool = False
+    drift_log: str | None = None  # path to append drift warnings; None → console only
+
+
+@dataclass
 class DependenciesConfig:
     generate: bool = False
     output: str = "src/dependencies"
@@ -120,6 +136,8 @@ class Config:
     webhooks: WebhooksConfig = field(default_factory=WebhooksConfig)
     extensions: ExtensionsConfig = field(default_factory=ExtensionsConfig)
     plugins: list[str] = field(default_factory=list)
+    router_scaffold: RouterScaffoldConfig = field(default_factory=RouterScaffoldConfig)
+    model_scaffold: ModelScaffoldConfig = field(default_factory=ModelScaffoldConfig)
 
 
 def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
@@ -141,6 +159,8 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     wh = data.get("webhooks", {})
     ext = data.get("extensions", {})
     plg = data.get("plugins", [])
+    rsc = data.get("router_scaffold", {})
+    msc = data.get("model_scaffold", {})
 
     source_root = out.get("source_root", "src")
     models_rel = out.get("models", "src/generated/models")
@@ -161,6 +181,8 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     tst_output = tst.get("output", "tests/generated")
     skl_output = skl.get("output", ".claude/commands")
     dep_output = dep.get("output", "src/dependencies")
+    rsc_output = rsc.get("output", "src/routers")
+    msc_output = msc.get("output", "src/models")
     tmpl_models = tmpl.get("models")
     tmpl_routers = tmpl.get("routers")
 
@@ -228,6 +250,18 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             globals=ext.get("globals") if isinstance(ext, dict) else None,
         ),
         plugins=list(plg) if isinstance(plg, list) else [],
+        router_scaffold=RouterScaffoldConfig(
+            generate=rsc.get("generate", False),
+            output=_resolve(rsc_output),
+            overwrite=rsc.get("overwrite", False),
+            drift_log=_resolve(rsc.get("drift_log")) if rsc.get("drift_log") else None,
+        ),
+        model_scaffold=ModelScaffoldConfig(
+            generate=msc.get("generate", False),
+            output=_resolve(msc_output),
+            overwrite=msc.get("overwrite", False),
+            drift_log=_resolve(msc.get("drift_log")) if msc.get("drift_log") else None,
+        ),
     )
 
 
