@@ -2,7 +2,7 @@
 
 > Analysis date: 2026-05-19 · Version: 0.5.1
 >
-> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix · `[~]` in progress (WP-8)
+> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix · `[~]` in progress (WP-9)
 
 ---
 
@@ -226,14 +226,14 @@ See B-01. Affects response type resolution, status code selection, and doctor di
 ---
 
 ### F-04 · `patternProperties` not handled
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 Valid in OAS 3.1 (JSON Schema). Not handled; silently ignored. Should produce `dict[str, T]` for typed pattern-based maps, or at minimum `dict[str, Any]` with a warning.
 
 ---
 
 ### F-05 · `if`/`then`/`else` conditional schemas not handled
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 Valid in OAS 3.1. Not handled; silently produces `Any`. Consider mapping to the `then` branch as a best-effort, with a warning.
 
@@ -262,14 +262,14 @@ Valid in OAS 3.1. Not handled; silently produces `Any`. Consider mapping to the 
 ---
 
 ### F-09 · OAS 3.1 `$ref` + sibling keywords (nullable override) ignored
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` returns early on any top-level `$ref` found (`break` at line 87 of `types.py`), ignoring the sibling `nullable`. This produces non-nullable types when the override should apply.
 
 ---
 
 ### F-10 · `contentEncoding` / `contentMediaType` not handled
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 `{"type": "string", "contentEncoding": "base64"}` should produce `bytes`. Currently produces `str`.
 
@@ -330,7 +330,7 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ---
 
 ### A-07 · `.pyoas_cache.json` has no file locking
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 Concurrent `pyoas models` runs (e.g., in parallel CI jobs sharing a workspace) can corrupt the cache JSON by writing simultaneously. `GenerationCache.save()` uses `Path.write_text()` with no exclusive lock.
 
@@ -339,7 +339,7 @@ Concurrent `pyoas models` runs (e.g., in parallel CI jobs sharing a workspace) c
 ---
 
 ### A-08 · `_find_referenced_schemas` uses object identity (`id()`) for cycle detection
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 
 `_seen` tracks `id(obj)` values. While Python does not garbage-collect objects mid-traversal in normal use, relying on object identity for cycle detection is fragile — two different dict objects at different points in the spec with the same `id()` (due to GC and reuse) would be incorrectly treated as the same node.
 
@@ -359,7 +359,7 @@ Concurrent `pyoas models` runs (e.g., in parallel CI jobs sharing a workspace) c
 ## Test Coverage Gaps
 
 ### T-01 · `pyoas watch` — no tests
-**Status**: [ ]
+**Status**: [x] *(WP-9)*
 Watchdog integration is completely untested. A broken `watch` command would not be caught by CI.
 
 ---
@@ -438,13 +438,13 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) |
-|---|---|---|---|---|---|---|
-| Bugs | 14 | 0 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 |
-| Missing OAS features | 10 | 6 | F-01, F-06 | — | F-03 | F-02 |
-| Architecture issues | 9 | 3 | A-04 | A-09 | A-01, A-02, A-05 | A-06 |
-| Test gaps | 13 | 2 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 |
-| **Total** | **46** | **11** | **12** | **8** | **9** | **6** |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) | Fixed (WP-9) |
+|---|---|---|---|---|---|---|---|
+| Bugs | 14 | 0 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 | — |
+| Missing OAS features | 10 | 2 | F-01, F-06 | — | F-03 | F-02 | F-04, F-05, F-09, F-10 |
+| Architecture issues | 9 | 1 | A-04 | A-09 | A-01, A-02, A-05 | A-06 | A-07, A-08 |
+| Test gaps | 13 | 1 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 | T-01 |
+| **Total** | **46** | **4** | **12** | **8** | **9** | **6** | **7** |
 
 ### Priority
 
@@ -452,5 +452,5 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 |---|---|
 | **High** | *(all resolved)* |
 | **Medium** | *(all resolved)* |
-| **Low (done)** | B-02, B-03, B-04, B-05, B-09, B-13, B-14, F-02, F-03, A-01, A-02, A-05, A-06, A-09, T-02, T-03, T-04, T-05, T-06, T-07, T-10, T-11, T-12, T-13 |
-| **Low (deferred)** | F-04, F-05, F-07–F-10, A-03, A-07, A-08, T-01 |
+| **Low (done)** | B-02, B-03, B-04, B-05, B-09, B-13, B-14, F-02, F-03, F-04, F-05, F-09, F-10, A-01, A-02, A-05, A-06, A-07, A-08, A-09, T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-10, T-11, T-12, T-13 |
+| **Low (deferred)** | F-07, F-08, A-03 |
