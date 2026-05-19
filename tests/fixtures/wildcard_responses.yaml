@@ -1,0 +1,81 @@
+openapi: "3.0.3"
+info:
+  title: Wildcard response codes
+  version: "1.0"
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: Uses 2XX wildcard response code (uppercase)
+      responses:
+        '2XX':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+  /items/{id}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Uses 2xx wildcard response code (lowercase)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '2xx':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+  /downloads/{id}:
+    get:
+      operationId: downloadItem
+      tags: [items]
+      summary: Binary download under 2XX wildcard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '2XX':
+          description: Binary download
+          content:
+            application/pdf: {}
+  /status:
+    get:
+      operationId: getStatus
+      tags: [items]
+      summary: Only a "default" response code (F-06)
+      responses:
+        'default':
+          description: Response for any status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+  /mixed:
+    get:
+      operationId: getMixed
+      tags: [items]
+      summary: Numeric code plus 2XX wildcard — numeric takes priority
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+        '2XX':
+          description: Other success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}

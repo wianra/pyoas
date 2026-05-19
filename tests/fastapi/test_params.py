@@ -1,6 +1,7 @@
 from pyoas.fastapi.params import (
     _annotated_base_type,
     build_function_params,
+    resolve_response_status_code,
     resolve_response_type,
 )
 
@@ -344,14 +345,18 @@ def test_resolve_response_type_bytes_fallback_when_mixed() -> None:
     assert result == "Response"
 
 
-def test_resolve_response_type_bytes_only_no_fallback() -> None:
-    """Single binary response (no JSON) → 'bytes', not 'Response'."""
+def test_resolve_response_type_binary_only_returns_response() -> None:
+    """Single binary response (no JSON) → 'Response', not 'bytes' (B-08).
+
+    FastAPI does not accept bytes as response_model; the caller must return a
+    Response object directly.
+    """
     operation = {
         "responses": {
             "200": {"content": {"application/pdf": {}}},
         }
     }
-    assert resolve_response_type(operation) == "bytes"
+    assert resolve_response_type(operation) == "Response"
 
 
 # ---------------------------------------------------------------------------
@@ -607,3 +612,100 @@ def test_unknown_content_type_fallback_has_todo() -> None:
     p = params[0]
     assert p["python_type"] == "Annotated[bytes, Body()]"
     assert "TODO" in (p["description"] or "")
+
+
+# ---------------------------------------------------------------------------
+# B-01 / F-01 / F-06 — wildcard ("2XX"/"2xx") and "default" response codes
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_response_status_code_wildcard_uppercase() -> None:
+    """'2XX' wildcard resolves to status code 200."""
+    operation = {
+        "responses": {
+            "2XX": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_status_code(operation) == 200
+
+
+def test_resolve_response_status_code_wildcard_lowercase() -> None:
+    """'2xx' wildcard (lowercase) resolves to status code 200."""
+    operation = {
+        "responses": {
+            "2xx": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_status_code(operation) == 200
+
+
+def test_resolve_response_status_code_numeric_preferred_over_wildcard() -> None:
+    """When '201' and '2XX' are both present, numeric code wins."""
+    operation = {
+        "responses": {
+            "2XX": _json_response({"$ref": "#/components/schemas/Item"}),
+            "201": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_status_code(operation) == 201
+
+
+def test_resolve_response_type_wildcard_uppercase() -> None:
+    """'2XX' wildcard code resolves to the declared schema type."""
+    operation = {
+        "responses": {
+            "2XX": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    raw = {
+        "responses": {
+            "2XX": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_type(operation, raw_operation=raw) == "Item"
+
+
+def test_resolve_response_type_wildcard_lowercase() -> None:
+    """'2xx' wildcard code (lowercase) resolves to the declared schema type."""
+    operation = {
+        "responses": {
+            "2xx": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    raw = {
+        "responses": {
+            "2xx": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_type(operation, raw_operation=raw) == "Item"
+
+
+def test_resolve_response_type_wildcard_binary() -> None:
+    """'2XX' with binary (non-JSON) content resolves to 'Response' (B-01 + B-08)."""
+    operation = {
+        "responses": {
+            "2XX": {"content": {"application/pdf": {}}},
+        }
+    }
+    assert resolve_response_type(operation) == "Response"
+
+
+def test_resolve_response_type_default_fallback() -> None:
+    """F-06: operation with only 'default' response uses that schema."""
+    operation = {
+        "responses": {
+            "default": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    raw = {
+        "responses": {
+            "default": _json_response({"$ref": "#/components/schemas/Item"}),
+        }
+    }
+    assert resolve_response_type(operation, raw_operation=raw) == "Item"
+
+
+def test_resolve_response_type_no_response_still_none() -> None:
+    """Operation with no responses at all returns 'None'."""
+    assert resolve_response_type({}) == "None"
+    assert resolve_response_type({"responses": {}}) == "None"

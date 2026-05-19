@@ -36,6 +36,12 @@ _CONTENT_TYPE_BODY_MAP: dict[str, str] = {
 }
 
 
+def _is_2xx(code: str | int) -> bool:
+    """True for numeric 2xx codes and OAS range wildcards ``"2XX"`` / ``"2xx"``."""
+    s = str(code)
+    return bool(re.match(r"^2\d{2}$", s)) or s.upper() == "2XX"
+
+
 def _annotated_base_type(py_type: str) -> str:
     """Strip ``Annotated[T, ...]`` wrapper and return ``T``, or return *py_type* unchanged."""
     if not py_type.startswith("Annotated["):
@@ -415,11 +421,16 @@ def resolve_response_status_code(operation: dict[str, Any]) -> int:
     Falls back to 200 if no 2xx response code is declared in the spec.
     """
     responses = operation.get("responses") or {}
-    success_codes = sorted(
-        (code for code in responses if re.match(r"^2\d{2}$", code)),
-        key=int,
+    numeric_codes = sorted(
+        (code for code in responses if re.match(r"^2\d{2}$", str(code))),
+        key=lambda c: int(c),
     )
-    return int(success_codes[0]) if success_codes else 200
+    if numeric_codes:
+        return int(numeric_codes[0])
+    # Wildcard-only spec (e.g. "2XX") — canonical success code is 200.
+    if any(_is_2xx(code) for code in responses):
+        return 200
+    return 200
 
 
 def resolve_response_type(
@@ -443,10 +454,15 @@ def resolve_response_type(
     """
     responses = operation.get("responses") or {}
     raw_responses = (raw_operation or {}).get("responses") or {}
-    success_codes = sorted(
-        (code for code in responses if re.match(r"^2\d{2}$", code)),
-        key=int,
+    numeric_codes = sorted(
+        (code for code in responses if re.match(r"^2\d{2}$", str(code))),
+        key=lambda c: int(c),
     )
+    wildcard_codes = [code for code in responses if str(code).upper() == "2XX"]
+    success_codes = numeric_codes + wildcard_codes
+    # F-06: fall back to "default" if no 2xx codes found at all.
+    if not success_codes and "default" in responses:
+        success_codes = ["default"]
     operation_id = (raw_operation or {}).get("operationId")
 
     # Collect one resolved type string per 2xx status code.
@@ -491,16 +507,17 @@ def resolve_response_type(
 
     if not unique or unique == ["None"]:
         return "None"
-    if len(unique) == 1:
-        return unique[0]
 
     non_none = [t for t in unique if t != "None"]
     has_empty = "None" in unique
-    model_types = [t for t in non_none if t != "bytes"]
 
-    # bytes mixed with model types → cannot unify; fall back to raw Response.
-    if "bytes" in non_none and model_types:
+    # Any binary (bytes) presence forces raw Response — FastAPI does not accept
+    # bytes as response_model.  Covers single-binary AND bytes+model mixes.
+    if "bytes" in non_none:
         return "Response"
+
+    if len(unique) == 1:
+        return unique[0]
 
     parts = non_none + (["None"] if has_empty else [])
     return parts[0] if len(parts) == 1 else " | ".join(parts)
