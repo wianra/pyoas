@@ -80,3 +80,4 @@ version_files = ["pyproject.toml:^version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
 annotated_tag = true
+post_bump_hooks = ["uv lock", "git add uv.lock"]
