@@ -63,14 +63,14 @@ def _extract_oauth2_token_url(scheme: dict[str, Any]) -> str:
 
 def _has_any_secured_operation(spec_raw: dict[str, Any], default_tag: str) -> bool:
     """Return True if at least one operation in the spec requires authentication."""
-    from pyoas.fastapi.generator import _has_security
+    from pyoas.fastapi.generator import has_security
 
     global_security: list[Any] = spec_raw.get("security") or []
     grouped = extract_tags(spec_raw, default_tag=default_tag)
     for operations in grouped.values():
         for op_entry in operations:
             operation = op_entry["operation"]
-            if _has_security(operation, global_security):
+            if has_security(operation, global_security):
                 return True
     return False
 

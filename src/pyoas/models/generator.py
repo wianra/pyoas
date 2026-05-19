@@ -15,7 +15,7 @@ from typing import Any
 import typer
 
 from pyoas.core.analysis import (
-    _GenericGroup,
+    GenericGroup,
     build_schema_tag_map,
     collect_inline_schemas,
     detect_generic_groups_global,
@@ -33,12 +33,12 @@ from pyoas.core.utils import (
 )
 
 from .classifier import (
-    _collect_defs_schemas,
-    _collect_shared_schemas,
     _collect_tag_schemas,
     _find_request_only_schema_names,
+    collect_defs_schemas,
+    collect_shared_schemas,
 )
-from .context import _build_models_context
+from .context import build_models_context
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 
@@ -140,7 +140,7 @@ class ModelGenerator:
         request_only_names = _find_request_only_schema_names(spec_raw)
 
         resolved_components_schemas = spec.get("components", {}).get("schemas", {})
-        defs_by_tag, shared_defs = _collect_defs_schemas(
+        defs_by_tag, shared_defs = collect_defs_schemas(
             raw_components_schemas, resolved_components_schemas, schema_tag_map
         )
 
@@ -164,7 +164,7 @@ class ModelGenerator:
         # constructing virtual base schema entries.
         resolved_schemas_map = spec.get("components", {}).get("schemas", {})
 
-        def _make_base_entry(group: _GenericGroup) -> dict[str, Any]:
+        def _make_base_entry(group: GenericGroup) -> dict[str, Any]:
             tmpl_name = group.template_schema_name
             return {
                 "name": group.generic_name,
@@ -248,7 +248,7 @@ class ModelGenerator:
                     msg += f"  {int((time.perf_counter() - _t0) * 1000)}ms"
                 progress_callback(msg)
 
-        shared_schemas = shared_defs + _collect_shared_schemas(
+        shared_schemas = shared_defs + collect_shared_schemas(
             spec, schema_tag_map, raw_components_schemas
         )
 
@@ -368,12 +368,12 @@ class ModelGenerator:
         output_root: Path,
         schema_tag_map: dict[str, set[str]],
         request_only_names: set[str],
-        generic_groups: dict[str, _GenericGroup] | None = None,
+        generic_groups: dict[str, GenericGroup] | None = None,
         spec_hash: str = "",
         shared_defs_names: set[str] | None = None,
     ) -> list[str]:
         """Write {tag}.py for one tag. Returns rendered class names."""
-        context = _build_models_context(
+        context = build_models_context(
             tag,
             schemas,
             self._config,

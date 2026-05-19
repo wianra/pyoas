@@ -649,3 +649,91 @@ def test_extensions_load_no_issue_when_not_configured() -> None:
     }
     issues = run_doctor_checks(spec_raw, cfg)
     assert not any(i.check == "extensions_load" for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# F-07: unprocessed_callbacks check
+# ---------------------------------------------------------------------------
+
+
+def test_detects_callbacks_on_operation() -> None:
+    """Warning emitted when an operation defines OAS callbacks."""
+    spec_raw = {
+        "openapi": "3.1.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/subscriptions": {
+                "post": {
+                    "operationId": "createSubscription",
+                    "callbacks": {
+                        "onEvent": {
+                            "{$request.body#/callbackUrl}": {
+                                "post": {"responses": {"200": {"description": "ok"}}}
+                            }
+                        },
+                        "onExpiry": {
+                            "{$request.body#/callbackUrl}": {
+                                "post": {"responses": {"200": {"description": "ok"}}}
+                            }
+                        },
+                    },
+                    "responses": {"201": {"description": "created"}},
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    cb_issues = [i for i in issues if i.check == "unprocessed_callbacks"]
+    assert len(cb_issues) == 1
+    assert cb_issues[0].level == "warning"
+    assert cb_issues[0].location == "POST /subscriptions"
+    assert "onEvent" in cb_issues[0].message
+    assert "onExpiry" in cb_issues[0].message
+
+
+def test_callbacks_no_false_positive() -> None:
+    """No unprocessed_callbacks warning when no callbacks are defined."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items": {
+                "get": {
+                    "operationId": "listItems",
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    assert not any(i.check == "unprocessed_callbacks" for i in issues)
+
+
+def test_callbacks_multiple_operations() -> None:
+    """One warning per operation that has callbacks."""
+    spec_raw = {
+        "openapi": "3.1.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/a": {
+                "post": {
+                    "operationId": "opA",
+                    "callbacks": {"cb1": {}},
+                    "responses": {"200": {"description": "ok"}},
+                }
+            },
+            "/b": {
+                "post": {
+                    "operationId": "opB",
+                    "callbacks": {"cb2": {}},
+                    "responses": {"200": {"description": "ok"}},
+                }
+            },
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    cb_issues = [i for i in issues if i.check == "unprocessed_callbacks"]
+    assert len(cb_issues) == 2

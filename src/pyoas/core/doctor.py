@@ -34,6 +34,7 @@ def run_doctor_checks(spec_raw: dict[str, Any], cfg: Any) -> list[DoctorIssue]:
     issues.extend(_check_operations(spec_raw))
     issues.extend(_check_parameter_shadowing(spec_raw))
     issues.extend(_check_missing_success_response(spec_raw))
+    issues.extend(_check_callbacks(spec_raw))
     issues.extend(_check_schemas(spec_raw))
     issues.extend(_check_services_import_path(cfg))
     issues.extend(_check_extensions_load(cfg))
@@ -223,6 +224,37 @@ def _check_missing_success_response(spec_raw: dict[str, Any]) -> list[DoctorIssu
 # ---------------------------------------------------------------------------
 # Schema-level checks
 # ---------------------------------------------------------------------------
+
+
+def _check_callbacks(spec_raw: dict[str, Any]) -> list[DoctorIssue]:
+    """Warn when operations define OAS callbacks that pyoas does not generate handlers for."""
+    issues: list[DoctorIssue] = []
+
+    for path, path_item in (spec_raw.get("paths") or {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS:
+                continue
+            if not isinstance(operation, dict):
+                continue
+            callbacks = operation.get("callbacks")
+            if not isinstance(callbacks, dict) or not callbacks:
+                continue
+            names = ", ".join(sorted(callbacks.keys()))
+            issues.append(
+                DoctorIssue(
+                    level="warning",
+                    check="unprocessed_callbacks",
+                    message=(
+                        f"operation defines callback(s) [{names}] — "
+                        f"pyoas does not generate callback handlers"
+                    ),
+                    location=f"{method.upper()} {path}",
+                )
+            )
+
+    return issues
 
 
 def _check_schemas(spec_raw: dict[str, Any]) -> list[DoctorIssue]:

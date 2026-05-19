@@ -1,5 +1,5 @@
 from pyoas.fastapi.params import (
-    _annotated_base_type,
+    annotated_base_type,
     build_function_params,
     resolve_response_status_code,
     resolve_response_type,
@@ -360,24 +360,24 @@ def test_resolve_response_type_binary_only_returns_response() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _annotated_base_type
+# annotated_base_type
 # ---------------------------------------------------------------------------
 
 
-def test_annotated_base_type_strips_body() -> None:
-    assert _annotated_base_type("Annotated[Pet, Body()]") == "Pet"
+def testannotated_base_type_strips_body() -> None:
+    assert annotated_base_type("Annotated[Pet, Body()]") == "Pet"
 
 
-def test_annotated_base_type_strips_query_constraints() -> None:
+def testannotated_base_type_strips_query_constraints() -> None:
     assert (
-        _annotated_base_type("Annotated[int | None, Query(ge=1, le=100)]")
+        annotated_base_type("Annotated[int | None, Query(ge=1, le=100)]")
         == "int | None"
     )
 
 
-def test_annotated_base_type_passthrough() -> None:
-    assert _annotated_base_type("int") == "int"
-    assert _annotated_base_type("str | None") == "str | None"
+def testannotated_base_type_passthrough() -> None:
+    assert annotated_base_type("int") == "int"
+    assert annotated_base_type("str | None") == "str | None"
 
 
 # ---------------------------------------------------------------------------
@@ -558,7 +558,7 @@ def test_body_param_has_annotated_body_wrapper() -> None:
     body = next(p for p in params if p["location"] == "body")
     assert body["python_type"].startswith("Annotated[")
     # After stripping (as done in scaffold.py service context):
-    assert _annotated_base_type(body["python_type"]) == "dict[str, Any]"
+    assert annotated_base_type(body["python_type"]) == "dict[str, Any]"
 
 
 def test_text_plain_generates_str_body() -> None:

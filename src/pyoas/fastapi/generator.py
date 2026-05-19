@@ -251,7 +251,7 @@ class RouterGenerator:
         global_security: list[Any] | None = None,
         spec_hash: str = "",
     ) -> None:
-        context = _build_router_context(
+        context = build_router_context(
             tag,
             operations,
             self._config,
@@ -323,7 +323,7 @@ def _strip_literals(s: str) -> str:
     return "".join(result)
 
 
-def _extract_model_class_names(type_strings: list[str]) -> set[str]:
+def extract_model_class_names(type_strings: list[str]) -> set[str]:
     """Return PascalCase identifiers from type annotation strings.
 
     Strips ``Literal[...]`` substrings first so that enum values like
@@ -337,7 +337,7 @@ def _extract_model_class_names(type_strings: list[str]) -> set[str]:
     }
 
 
-def _classify_model_imports(
+def classify_model_imports(
     class_names: set[str],
     tag: str,
     schema_tag_map: dict[str, set[str]],
@@ -396,7 +396,7 @@ def _classify_model_imports(
 # ---------------------------------------------------------------------------
 
 
-def _build_router_context(
+def build_router_context(
     tag: str,
     operations: list[dict[str, Any]],
     config: Config,
@@ -465,8 +465,8 @@ def _build_router_context(
         config.output.models, config.output.source_root
     )
 
-    class_names = _extract_model_class_names(all_type_strings)
-    tag_local_names, shared_names = _classify_model_imports(
+    class_names = extract_model_class_names(all_type_strings)
+    tag_local_names, shared_names = classify_model_imports(
         class_names,
         tag,
         schema_tag_map or {},
@@ -492,6 +492,19 @@ def _build_router_context(
     )
     dep_import_path = config.dependencies.import_path or None
 
+    # Collect operations that define OAS callbacks (informational only — not generated).
+    unprocessed_callbacks: list[dict[str, Any]] = []
+    for op_entry in operations:
+        callbacks = op_entry.get("operation", {}).get("callbacks") or {}
+        if callbacks:
+            unprocessed_callbacks.append(
+                {
+                    "method": op_entry.get("method", "").upper(),
+                    "path": op_entry.get("path", ""),
+                    "names": sorted(callbacks.keys()),
+                }
+            )
+
     return {
         "tag": tag,
         "has_webhooks": has_webhooks,
@@ -512,10 +525,11 @@ def _build_router_context(
         "fastapi_param_classes": fastapi_param_classes,
         "response_model_exclude_none": config.router.response_model_exclude_none,
         "response_model_exclude_unset": config.router.response_model_exclude_unset,
+        "unprocessed_callbacks": unprocessed_callbacks,
     }
 
 
-def _has_security(operation: dict[str, Any], global_security: list[Any]) -> bool:
+def has_security(operation: dict[str, Any], global_security: list[Any]) -> bool:
     """Return True if this operation requires authentication."""
     op_security = operation.get("security")
     if op_security is not None:
@@ -592,7 +606,7 @@ def _render_operation(
         "status_code": status_code,
         "deprecated": operation.get("deprecated", False),
         "operation_id": operation.get("operationId"),
-        "has_security": _has_security(operation, global_security or []),
+        "has_security": has_security(operation, global_security or []),
         "required_scopes": _extract_security_scopes(operation, global_security or []),
         "x_extensions": {k: v for k, v in operation.items() if k.startswith("x-")},
         "is_webhook": is_webhook,

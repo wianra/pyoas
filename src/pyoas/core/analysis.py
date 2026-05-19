@@ -97,7 +97,7 @@ CONSTRAINT_ARGS: dict[str, str] = {
 
 
 @dataclass
-class _GenericGroup:
+class GenericGroup:
     """Represents a group of schemas that are concrete instantiations of a generic."""
 
     generic_name: str  # e.g. "Paginated"
@@ -313,7 +313,7 @@ def _find_t_field(
 def detect_generic_groups_global(
     raw_components_schemas: dict[str, Any],
     schema_tag_map: dict[str, set[str]],
-) -> dict[str, _GenericGroup]:
+) -> dict[str, GenericGroup]:
     """
     Scan all component schemas for ``title`` values matching ``Name[Param]``.
 
@@ -390,8 +390,8 @@ def detect_generic_groups_global(
             continue  # title-based detection takes precedence
         by_generic[prefix] = instances
 
-    # Second pass: build _GenericGroup objects with home_tag resolved
-    groups: dict[str, _GenericGroup] = {}
+    # Second pass: build GenericGroup objects with home_tag resolved
+    groups: dict[str, GenericGroup] = {}
     for generic_name, instances in by_generic.items():
         # Use first instance as the field template
         first_schema_name = instances[0]["schema_name"]
@@ -418,7 +418,7 @@ def detect_generic_groups_global(
         else:
             home_tag = None  # goes to shared
 
-        groups[generic_name] = _GenericGroup(
+        groups[generic_name] = GenericGroup(
             generic_name=generic_name,
             t_field_name=t_field_name,
             t_is_list=t_is_list,

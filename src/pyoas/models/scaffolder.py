@@ -12,7 +12,7 @@ from typing import Any
 import typer
 
 from pyoas.core.analysis import (
-    _GenericGroup,
+    GenericGroup,
     build_schema_tag_map,
     collect_inline_schemas,
     detect_generic_groups_global,
@@ -25,12 +25,12 @@ from pyoas.core.tags import extract_tags
 from pyoas.core.utils import format_output, tag_to_dirname
 
 from .classifier import (
-    _collect_defs_schemas,
-    _collect_shared_schemas,
     _collect_tag_schemas,
     _find_request_only_schema_names,
+    collect_defs_schemas,
+    collect_shared_schemas,
 )
-from .context import _build_models_context
+from .context import build_models_context
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 
@@ -74,7 +74,7 @@ class ModelScaffolder:
         request_only_names = _find_request_only_schema_names(spec_raw)
 
         resolved_components_schemas = spec.get("components", {}).get("schemas", {})
-        defs_by_tag, shared_defs = _collect_defs_schemas(
+        defs_by_tag, shared_defs = collect_defs_schemas(
             raw_components_schemas, resolved_components_schemas, schema_tag_map
         )
 
@@ -89,7 +89,7 @@ class ModelScaffolder:
 
         resolved_schemas_map = spec.get("components", {}).get("schemas", {})
 
-        def _make_base_entry(group: _GenericGroup) -> dict[str, Any]:
+        def _make_base_entry(group: GenericGroup) -> dict[str, Any]:
             tmpl_name = group.template_schema_name
             return {
                 "name": group.generic_name,
@@ -132,7 +132,7 @@ class ModelScaffolder:
 
         # Handle shared.py if not tag-filtered (shared spans all tags)
         if not tag_filter:
-            shared_schemas = shared_defs + _collect_shared_schemas(
+            shared_schemas = shared_defs + collect_shared_schemas(
                 spec, schema_tag_map, raw_components_schemas
             )
             shared_base_entries = [
@@ -176,14 +176,14 @@ class ModelScaffolder:
         output_root: Path,
         schema_tag_map: dict[str, set[str]],
         request_only_names: set[str],
-        generic_groups: dict[str, _GenericGroup] | None = None,
+        generic_groups: dict[str, GenericGroup] | None = None,
         shared_defs_names: set[str] | None = None,
     ) -> ScaffoldResult:
         tag_result = ScaffoldResult()
         file_name = f"{tag_to_dirname(tag)}.py"
         out_file = output_root / file_name
 
-        context = _build_models_context(
+        context = build_models_context(
             tag,
             schemas,
             self._config,
@@ -225,7 +225,7 @@ class ModelScaffolder:
             return tag_result
 
         # Build delta context with only the new schemas.
-        delta_context = _build_models_context(
+        delta_context = build_models_context(
             tag,
             [s for s in schemas if s.get("name") in new_schema_names],
             self._config,
@@ -346,7 +346,7 @@ def detect_model_drift(
     schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw_all)
     request_only_names = _find_request_only_schema_names(spec_raw)
     resolved_components_schemas = spec.get("components", {}).get("schemas", {})
-    defs_by_tag, shared_defs = _collect_defs_schemas(
+    defs_by_tag, shared_defs = collect_defs_schemas(
         raw_components_schemas, resolved_components_schemas, schema_tag_map
     )
     inline_by_tag, inline_request_names = collect_inline_schemas(
@@ -361,7 +361,7 @@ def detect_model_drift(
     )
     resolved_schemas_map = spec.get("components", {}).get("schemas", {})
 
-    def _make_base_entry(group: _GenericGroup) -> dict[str, Any]:
+    def _make_base_entry(group: GenericGroup) -> dict[str, Any]:
         tmpl_name = group.template_schema_name
         return {
             "name": group.generic_name,
@@ -378,7 +378,7 @@ def detect_model_drift(
 
     tags_to_check = dict(grouped)
     if not tag_filter:
-        shared_schemas = shared_defs + _collect_shared_schemas(
+        shared_schemas = shared_defs + collect_shared_schemas(
             spec, schema_tag_map, raw_components_schemas
         )
         shared_base_entries = [
@@ -397,9 +397,9 @@ def detect_model_drift(
                     if g.home_tag is None
                 ]
                 + shared_defs
-                + _collect_shared_schemas(spec, schema_tag_map, raw_components_schemas)
+                + collect_shared_schemas(spec, schema_tag_map, raw_components_schemas)
             )
-            context = _build_models_context(
+            context = build_models_context(
                 "shared",
                 _shared_all,
                 cfg,
@@ -424,7 +424,7 @@ def detect_model_drift(
                 + tag_schemas
                 + inline_by_tag.get(tag, [])
             )
-            context = _build_models_context(
+            context = build_models_context(
                 tag,
                 all_schemas,
                 cfg,

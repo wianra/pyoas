@@ -25,9 +25,9 @@ from pyoas.core.config import (
     TemplatesConfig,
     WebhooksConfig,
 )
-from pyoas.models.classifier import _collect_shared_schemas
+from pyoas.models.classifier import collect_shared_schemas
 from pyoas.models.generator import ModelGenerator
-from pyoas.models.schema_renderer import _render_enum_class, _render_schema
+from pyoas.models.schema_renderer import render_enum_class, render_schema
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -111,7 +111,7 @@ def test_shared_schema_detected(multi_tag: Path) -> None:
     assert len(tag_map["Address"]) == 2
 
     raw_cs = spec_raw.get("components", {}).get("schemas", {})
-    shared = _collect_shared_schemas(spec, tag_map, raw_cs)
+    shared = collect_shared_schemas(spec, tag_map, raw_cs)
     shared_names = [s["name"] for s in shared]
     assert "Address" in shared_names
 
@@ -148,7 +148,7 @@ def test_readonly_writeonly_split() -> None:
         fields=FieldsConfig(snake_case=True, enums_as_literals=True),
         format=FormatConfig(enabled=False),
     )
-    rendered = _render_schema(schema_entry, cfg)
+    rendered = render_schema(schema_entry, cfg)
     # Read, Write, plus alias {name} = {name}Read
     assert len(rendered) == 3
     names = [r["name"] for r in rendered]
@@ -191,7 +191,7 @@ def test_readonly_only_splits() -> None:
         "raw_schema": None,
     }
     cfg = Config(spec="dummy.yaml")
-    rendered = _render_schema(schema_entry, cfg)
+    rendered = render_schema(schema_entry, cfg)
     assert len(rendered) == 3
     names = [r["name"] for r in rendered]
     assert "ItemRead" in names
@@ -533,7 +533,7 @@ def test_x_enum_varnames_used_when_present() -> None:
         "enum": [1, 2, 3],
         "x-enum-varnames": ["LOW", "MEDIUM", "HIGH"],
     }
-    result = _render_enum_class("Priority", schema)
+    result = render_enum_class("Priority", schema)
     members = result[0]["members"]
     assert [m["name"] for m in members] == ["LOW", "MEDIUM", "HIGH"]
     assert [m["value"] for m in members] == ["1", "2", "3"]
@@ -542,18 +542,18 @@ def test_x_enum_varnames_used_when_present() -> None:
 def test_x_enum_varnames_fallback() -> None:
     """Falls back to synthesis when x-enum-varnames is absent, empty, or too short."""
     # Absent
-    r = _render_enum_class("P", {"type": "integer", "enum": [1, 2, 3]})
+    r = render_enum_class("P", {"type": "integer", "enum": [1, 2, 3]})
     assert [m["name"] for m in r[0]["members"]] == ["VALUE_1", "VALUE_2", "VALUE_3"]
 
     # Too short — partial override, synthesis for remainder
-    r = _render_enum_class(
+    r = render_enum_class(
         "P",
         {"type": "integer", "enum": [1, 2, 3], "x-enum-varnames": ["LOW", "MEDIUM"]},
     )
     assert [m["name"] for m in r[0]["members"]] == ["LOW", "MEDIUM", "VALUE_3"]
 
     # Empty list — synthesize all
-    r = _render_enum_class(
+    r = render_enum_class(
         "P", {"type": "integer", "enum": [1, 2, 3], "x-enum-varnames": []}
     )
     assert [m["name"] for m in r[0]["members"]] == ["VALUE_1", "VALUE_2", "VALUE_3"]
@@ -731,7 +731,7 @@ def _make_allof_schema_entry(
     raw_allof: list,
     resolved_allof: list,
 ) -> dict:
-    """Build a schema entry for _render_schema testing allOf patterns."""
+    """Build a schema entry for render_schema testing allOf patterns."""
     return {
         "name": name,
         "schema": {"allOf": resolved_allof},
@@ -741,7 +741,7 @@ def _make_allof_schema_entry(
 
 def test_allof_single_ref_nested_generates_inheritance() -> None:
     """Dog(Animal) via nested allOf generates class Dog(Animal): breed: ... (not name)."""
-    from pyoas.models.schema_renderer import _render_schema
+    from pyoas.models.schema_renderer import render_schema
 
     raw_allof = [
         {"$ref": "#/components/schemas/Animal"},
@@ -758,7 +758,7 @@ def test_allof_single_ref_nested_generates_inheritance() -> None:
     entry = _make_allof_schema_entry("Dog", raw_allof, resolved_allof)
     cfg = Config(spec="dummy.yaml")
 
-    rendered = _render_schema(entry, cfg)
+    rendered = render_schema(entry, cfg)
 
     assert len(rendered) == 1
     rs = rendered[0]
@@ -771,7 +771,7 @@ def test_allof_single_ref_nested_generates_inheritance() -> None:
 
 def test_allof_flat_pattern_regression() -> None:
     """DogFlat (properties at top level) still works correctly after the fix."""
-    from pyoas.models.schema_renderer import _render_schema
+    from pyoas.models.schema_renderer import render_schema
 
     # DogFlat: type: object, allOf: [{$ref: Animal}], properties: {coat: ...}
     entry = {
@@ -795,7 +795,7 @@ def test_allof_flat_pattern_regression() -> None:
     }
     cfg = Config(spec="dummy.yaml")
 
-    rendered = _render_schema(entry, cfg)
+    rendered = render_schema(entry, cfg)
 
     assert len(rendered) == 1
     rs = rendered[0]
@@ -807,7 +807,7 @@ def test_allof_flat_pattern_regression() -> None:
 
 def test_allof_child_no_own_fields_generates_pass_guard() -> None:
     """DogNoExtras (allOf with only a $ref, no extra properties) generates empty fields list."""
-    from pyoas.models.schema_renderer import _render_schema
+    from pyoas.models.schema_renderer import render_schema
 
     raw_allof = [{"$ref": "#/components/schemas/Animal"}]
     resolved_allof = [
@@ -820,7 +820,7 @@ def test_allof_child_no_own_fields_generates_pass_guard() -> None:
     entry = _make_allof_schema_entry("DogNoExtras", raw_allof, resolved_allof)
     cfg = Config(spec="dummy.yaml")
 
-    rendered = _render_schema(entry, cfg)
+    rendered = render_schema(entry, cfg)
 
     assert len(rendered) == 1
     rs = rendered[0]
@@ -830,7 +830,7 @@ def test_allof_child_no_own_fields_generates_pass_guard() -> None:
 
 def test_allof_multi_ref_keeps_existing_behavior() -> None:
     """Multi-$ref allOf (two $refs) still uses bases for both (existing behavior)."""
-    from pyoas.models.schema_renderer import _render_schema
+    from pyoas.models.schema_renderer import render_schema
 
     raw_allof = [
         {"$ref": "#/components/schemas/Animal"},
@@ -843,13 +843,33 @@ def test_allof_multi_ref_keeps_existing_behavior() -> None:
     entry = _make_allof_schema_entry("MultiParent", raw_allof, resolved_allof)
     cfg = Config(spec="dummy.yaml")
 
-    rendered = _render_schema(entry, cfg)
+    rendered = render_schema(entry, cfg)
 
     assert len(rendered) == 1
     rs = rendered[0]
     # Multi-$ref: bases has both; fields are from top-level properties (empty here)
     assert "Animal" in rs["bases"]
     assert "Dog" in rs["bases"]
+
+
+def test_allof_multi_ref_generates_composed_class_not_union() -> None:
+    """F-08: allOf with two $refs generates class Combined(Base, Named): ..., not Base | Named."""
+    import tempfile
+
+    fixture = Path(__file__).parents[1] / "fixtures" / "multi_parent_allof.yaml"
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(fixture), tmp)
+        ModelGenerator(cfg).generate()
+
+        entities_src = (Path(tmp) / "entities.py").read_text()
+
+        # Composed class — not a union type alias
+        assert "class Combined(" in entities_src
+        assert "Base" in entities_src
+        assert "Named" in entities_src
+        # Must NOT render as a union type alias
+        assert "Base | Named" not in entities_src
+        assert "Combined = " not in entities_src
 
 
 def test_allof_inheritance_full_generation(

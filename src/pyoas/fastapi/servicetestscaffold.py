@@ -24,21 +24,11 @@ from pyoas.core.utils import (
     to_snake_case,
 )
 
-from .params import build_function_params
-from .testscaffold import (
-    _annotated_base_type,
-    _normalize_response_type,
-)
+from .generator import has_security
+from .params import annotated_base_type, build_function_params
+from .testscaffold import _normalize_response_type
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
-
-
-def _has_security(operation: dict[str, Any], global_security: list[Any]) -> bool:
-    """Return True if this operation requires authentication."""
-    op_security = operation.get("security")
-    if op_security is not None:
-        return len(op_security) > 0  # explicit override ([] means no auth)
-    return len(global_security) > 0  # inherit global
 
 
 def _success_test_name(method: str, response_type_str: str) -> str:
@@ -201,12 +191,12 @@ def _build_service_test_context(
 
         has_path_id_param = any(
             p["location"] == "path"
-            and _annotated_base_type(p["python_type"]).split("[")[0].strip()
+            and annotated_base_type(p["python_type"]).split("[")[0].strip()
             in ("int", "float", "uuid.UUID")
             for p in params
         )
         has_not_found_case = method in ("get", "patch", "delete") and has_path_id_param
-        has_security = _has_security(operation, global_security)
+        op_has_security = has_security(operation, global_security)
 
         from .params import resolve_response_type
 
@@ -229,7 +219,7 @@ def _build_service_test_context(
                 path=path,
                 has_not_found_case=has_not_found_case,
                 has_path_id_param=has_path_id_param,
-                has_security=has_security,
+                has_security=op_has_security,
                 success_test_name=success_name,
             )
         )

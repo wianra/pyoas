@@ -80,7 +80,7 @@ def _collect_tag_schemas(
     return owned
 
 
-def _collect_shared_schemas(
+def collect_shared_schemas(
     spec: dict[str, Any],
     schema_tag_map: dict[str, set[str]],
     raw_components_schemas: dict[str, Any],
@@ -124,7 +124,7 @@ def _find_defs_ref_users(
     return users
 
 
-def _collect_defs_schemas(
+def collect_defs_schemas(
     raw_components_schemas: dict[str, Any],
     resolved_components_schemas: dict[str, Any],
     schema_tag_map: dict[str, set[str]],

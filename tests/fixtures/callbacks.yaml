@@ -1,0 +1,96 @@
+openapi: "3.1.0"
+info:
+  title: Callbacks Test
+  version: "1.0.0"
+paths:
+  /subscriptions:
+    post:
+      operationId: createSubscription
+      summary: Subscribe to event notifications
+      tags:
+        - subscriptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+      callbacks:
+        onEvent:
+          '{$request.body#/callbackUrl}':
+            post:
+              requestBody:
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/EventPayload'
+              responses:
+                '200':
+                  description: Callback received
+        onExpiry:
+          '{$request.body#/callbackUrl}':
+            post:
+              requestBody:
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/ExpiryPayload'
+              responses:
+                '200':
+                  description: Expiry notification received
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+  /items:
+    get:
+      operationId: listItems
+      summary: List items (no callbacks)
+      tags:
+        - items
+      responses:
+        '200':
+          description: Items list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+components:
+  schemas:
+    SubscriptionRequest:
+      type: object
+      required: [callbackUrl]
+      properties:
+        callbackUrl:
+          type: string
+    Subscription:
+      type: object
+      required: [id, callbackUrl]
+      properties:
+        id:
+          type: string
+        callbackUrl:
+          type: string
+    EventPayload:
+      type: object
+      required: [event]
+      properties:
+        event:
+          type: string
+    ExpiryPayload:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+    Item:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string

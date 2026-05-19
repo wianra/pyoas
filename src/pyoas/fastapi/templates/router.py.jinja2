@@ -31,6 +31,12 @@ router = APIRouter(tags=["{{ tag }}"])
 {% if has_webhooks %}
 webhooks = APIRouter(tags=["{{ tag }}"])
 {% endif %}
+{% if unprocessed_callbacks %}
+# NOTE: the following operations define OAS callbacks that are not generated:
+{% for cb in unprocessed_callbacks %}
+#   {{ cb.method }} {{ cb.path }}: {{ cb.names | join(", ") }}
+{% endfor %}
+{% endif %}
 
 
 {% for op in operations %}

@@ -26,9 +26,9 @@ from pyoas.core.utils import (
     to_snake_case,
 )
 
-from .generator import _has_security
+from .generator import has_security
 from .params import (
-    _annotated_base_type,
+    annotated_base_type,
     build_function_params,
     resolve_response_status_code,
     resolve_response_type,
@@ -765,7 +765,7 @@ def _build_test_context(
                             example = str(other_p["spec_example"])
                         else:
                             other_base = (
-                                _annotated_base_type(other_p["python_type"])
+                                annotated_base_type(other_p["python_type"])
                                 .split("[")[0]
                                 .strip()
                             )
@@ -794,7 +794,7 @@ def _build_test_context(
         for p in params:
             if p["location"] != "path":
                 continue
-            base = _annotated_base_type(p["python_type"]).split("[")[0].strip()
+            base = annotated_base_type(p["python_type"]).split("[")[0].strip()
             if base not in ("int", "float", "uuid.UUID"):
                 continue
             invalid_segment = "not-a-uuid" if base == "uuid.UUID" else "not-an-integer"
@@ -816,7 +816,7 @@ def _build_test_context(
                         example = str(other_p["spec_example"])
                     else:
                         other_base = (
-                            _annotated_base_type(other_p["python_type"])
+                            annotated_base_type(other_p["python_type"])
                             .split("[")[0]
                             .strip()
                         )
@@ -838,7 +838,7 @@ def _build_test_context(
         # Not-found stub: GET / PATCH / DELETE with at least one integer path param.
         has_not_found_case = method in ("get", "patch", "delete") and any(
             p["location"] == "path"
-            and _annotated_base_type(p["python_type"]).split("[")[0].strip()
+            and annotated_base_type(p["python_type"]).split("[")[0].strip()
             in ("int", "float", "uuid.UUID")
             for p in params
         )
@@ -969,7 +969,7 @@ def _build_test_context(
     dep_import_path = config.dependencies.import_path or None
     _gs = global_security or []
     has_auth_dep = bool(dep_import_path) and any(
-        _has_security(op_entry["operation"], _gs) for op_entry in operations
+        has_security(op_entry["operation"], _gs) for op_entry in operations
     )
 
     return {
@@ -992,7 +992,7 @@ def _build_test_context(
 
 def _default_query_param_value(param: dict[str, Any]) -> Any:
     """Return a sensible default value for a required query param with no default."""
-    inner = _annotated_base_type(param["python_type"])
+    inner = annotated_base_type(param["python_type"])
     lit_m = re.match(r"^Literal\[(.+)\]$", inner)
     if lit_m:
         content = lit_m.group(1).strip()
@@ -1024,7 +1024,7 @@ def _fill_path_params(path: str, params: list[dict[str, Any]]) -> str:
                 example = str(p["spec_example"])
             else:
                 # Strip generics / Annotated wrapper for lookup.
-                base = _annotated_base_type(p["python_type"]).split("[")[0].strip()
+                base = annotated_base_type(p["python_type"]).split("[")[0].strip()
                 example = _PATH_PARAM_EXAMPLES.get(base, "1")
             result = result.replace("{" + p["alias"] + "}", example)
     return result

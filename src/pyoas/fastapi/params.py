@@ -42,7 +42,7 @@ def _is_2xx(code: str | int) -> bool:
     return bool(re.match(r"^2\d{2}$", s)) or s.upper() == "2XX"
 
 
-def _annotated_base_type(py_type: str) -> str:
+def annotated_base_type(py_type: str) -> str:
     """Strip ``Annotated[T, ...]`` wrapper and return ``T``, or return *py_type* unchanged."""
     if not py_type.startswith("Annotated["):
         return py_type

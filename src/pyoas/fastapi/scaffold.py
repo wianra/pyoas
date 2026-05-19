@@ -35,11 +35,11 @@ from pyoas.core.utils import (
 from pyoas.models.types import required_imports
 
 from .generator import (
-    _classify_model_imports,
-    _extract_model_class_names,
-    _has_security,
+    classify_model_imports,
+    extract_model_class_names,
+    has_security,
 )
-from .params import _annotated_base_type, build_function_params, resolve_response_type
+from .params import annotated_base_type, build_function_params, resolve_response_type
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 
@@ -521,7 +521,7 @@ def _build_service_context(
         params = [
             {
                 **p,
-                "python_type": _annotated_base_type(p["python_type"]),
+                "python_type": annotated_base_type(p["python_type"]),
                 "fastapi_class": None,
             }
             for p in raw_params
@@ -539,7 +539,7 @@ def _build_service_context(
                 "response_type": response_type,
                 "summary": operation.get("summary", ""),
                 "description": operation.get("description", ""),
-                "has_security": _has_security(operation, global_security or []),
+                "has_security": has_security(operation, global_security or []),
             }
         )
 
@@ -562,8 +562,8 @@ def _build_service_context(
     models_import_path = config.output.models_import or derive_import_path(
         config.output.models, config.output.source_root
     )
-    class_names = _extract_model_class_names(all_type_strings)
-    tag_local_names, shared_names = _classify_model_imports(
+    class_names = extract_model_class_names(all_type_strings)
+    tag_local_names, shared_names = classify_model_imports(
         class_names,
         tag,
         schema_tag_map or {},

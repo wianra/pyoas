@@ -26,7 +26,7 @@ from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import tag_to_dirname
 
-from .generator import _build_router_context
+from .generator import build_router_context
 
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 
@@ -129,7 +129,7 @@ class RouterScaffolder:
         tag_dirname = tag_to_dirname(tag)
         router_file = output_root / f"{tag_dirname}.py"
 
-        context = _build_router_context(
+        context = build_router_context(
             tag,
             operations,
             self._config,
@@ -293,7 +293,7 @@ def detect_router_drift(
             {**op, "raw_operation": raw_op["operation"]}
             for op, raw_op in zip(operations, raw_ops, strict=True)
         ]
-        context = _build_router_context(
+        context = build_router_context(
             tag,
             merged,
             cfg,

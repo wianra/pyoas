@@ -1,6 +1,6 @@
 from .analysis import (
     CONSTRAINT_ARGS,
-    _GenericGroup,
+    GenericGroup,
     build_schema_tag_map,
     collect_inline_schemas,
     detect_generic_groups_global,
@@ -30,7 +30,7 @@ from .tags import extract_tags
 
 __all__ = [
     "CONSTRAINT_ARGS",
-    "_GenericGroup",
+    "GenericGroup",
     "build_schema_tag_map",
     "collect_inline_schemas",
     "detect_generic_groups_global",

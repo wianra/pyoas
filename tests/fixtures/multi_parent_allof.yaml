@@ -1,0 +1,36 @@
+openapi: "3.0.0"
+info:
+  title: Multi-Parent AllOf Test
+  version: "1.0.0"
+paths:
+  /entities:
+    get:
+      operationId: listEntities
+      tags: [entities]
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Combined"
+components:
+  schemas:
+    Base:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    Named:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    Combined:
+      # F-08: multi-$ref allOf must generate class Combined(Base, Named): ...
+      # not a type alias Combined = Base | Named
+      allOf:
+        - $ref: "#/components/schemas/Base"
+        - $ref: "#/components/schemas/Named"

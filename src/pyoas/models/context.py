@@ -9,29 +9,29 @@ import re
 from typing import Any
 
 from pyoas.core.analysis import (
-    _GenericGroup,
+    GenericGroup,
     _type_param_to_identifier,
 )
 from pyoas.core.config import Config
 
-from .schema_renderer import _render_generic_base_schema, _render_schema
+from .schema_renderer import render_generic_base_schema, render_schema
 from .types import required_imports
 
 
-def _build_models_context(
+def build_models_context(
     tag: str,
     schemas: list[dict[str, Any]],
     config: Config,
     schema_tag_map: dict[str, set[str]],
     request_only_names: set[str],
-    generic_groups: dict[str, _GenericGroup] | None = None,
+    generic_groups: dict[str, GenericGroup] | None = None,
     shared_defs_names: set[str] | None = None,
 ) -> dict[str, Any]:
     """Build the Jinja2 context dict for the model.py.jinja2 template."""
     generic_groups = generic_groups or {}
 
-    # Build reverse maps: original_schema_name → (_GenericGroup, type_param)
-    concrete_to_group: dict[str, _GenericGroup] = {}
+    # Build reverse maps: original_schema_name → (GenericGroup, type_param)
+    concrete_to_group: dict[str, GenericGroup] = {}
     concrete_to_type_param: dict[str, str] = {}
     for group in generic_groups.values():
         for inst in group.instances:
@@ -49,8 +49,8 @@ def _build_models_context(
 
         # Virtual generic base schemas are injected directly.
         if s.get("_is_generic_base"):
-            generic_group: _GenericGroup = s["_group"]
-            base = _render_generic_base_schema(generic_group, s, config)
+            generic_group: GenericGroup = s["_group"]
+            base = render_generic_base_schema(generic_group, s, config)
             base["extra"] = schema_extra
             rendered_schemas.append(base)
             continue
@@ -88,7 +88,7 @@ def _build_models_context(
             continue
 
         # Regular schema — render normally.
-        new_schemas = _render_schema(s, config)
+        new_schemas = render_schema(s, config)
         for rs in new_schemas:
             # Write variants are always request schemas regardless of origin.
             if not rs.get("is_alias") and rs["name"].endswith("Write"):

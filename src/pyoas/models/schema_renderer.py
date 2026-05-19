@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from pyoas.core.analysis import CONSTRAINT_ARGS, _GenericGroup
+from pyoas.core.analysis import CONSTRAINT_ARGS, GenericGroup
 from pyoas.core.config import Config
 from pyoas.core.utils import to_snake_case
 
@@ -79,7 +79,7 @@ def _build_fields(
     return fields
 
 
-def _render_enum_class(name: str, schema: dict[str, Any]) -> list[dict[str, Any]]:
+def render_enum_class(name: str, schema: dict[str, Any]) -> list[dict[str, Any]]:
     """Build a StrEnum / IntEnum class descriptor from a component enum schema."""
     raw_type = schema.get("type")
     enum_type = "StrEnum" if raw_type != "integer" else "IntEnum"
@@ -120,7 +120,7 @@ def _render_enum_class(name: str, schema: dict[str, Any]) -> list[dict[str, Any]
     ]
 
 
-def _render_schema(
+def render_schema(
     schema_entry: dict[str, Any],
     config: Config,
 ) -> list[dict[str, Any]]:
@@ -151,7 +151,7 @@ def _render_schema(
                 }
             ]
         else:
-            return _render_enum_class(name, schema)
+            return render_enum_class(name, schema)
 
     # Type alias: oneOf/anyOf at top level without own properties.
     if _is_type_alias(schema):
@@ -359,15 +359,15 @@ def _extract_constraints(schema: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def _render_generic_base_schema(
-    group: _GenericGroup,
+def render_generic_base_schema(
+    group: GenericGroup,
     template_entry: dict[str, Any],
     config: Config,
 ) -> dict[str, Any]:
     """
     Build the schema dict for the generic base class.
 
-    Identical to ``_render_schema`` for a normal object except the T field
+    Identical to ``render_schema`` for a normal object except the T field
     gets ``list[T]`` or ``T`` instead of a concrete type reference.
     """
     schema = template_entry["schema"]

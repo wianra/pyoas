@@ -2,7 +2,7 @@
 
 > Analysis date: 2026-05-19 · Version: 0.5.1
 >
-> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix · `[~]` in progress (WP-9)
+> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix
 
 ---
 
@@ -249,15 +249,15 @@ Valid in OAS 3.1. Not handled; silently produces `Any`. Consider mapping to the 
 ---
 
 ### F-07 · OAS Callbacks not processed
-**Status**: [ ]
-`paths[…][method].callbacks` is not processed. Generated routers silently omit them.
+**Status**: [x] *(WP-10)*
+`paths[…][method].callbacks` is not processed. Doctor now warns on operations with callbacks (`unprocessed_callbacks`). Generated routers emit a `# NOTE` comment listing the unprocessed callback names for each affected operation.
 
 ---
 
 ### F-08 · `allOf` with multiple `$ref`s emits union instead of composed model
-**Status**: [ ]
+**Status**: [x] *(WP-10 — confirmed already correct; regression test added)*
 
-`allOf: [$ref/A, $ref/B]` is rendered as `A | B`. OAS semantics are "implements all of A and B" (mixin). A composed class (`class C(A, B): ...`) would be more accurate. Currently only single-`$ref` `allOf` is treated as inheritance.
+`allOf: [$ref/A, $ref/B]` already produces `class C(A, B): pass` via `_find_allof_bases` in `schema_renderer.py`. Confirmed with `test_allof_multi_ref_generates_composed_class_not_union`.
 
 ---
 
@@ -296,11 +296,11 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ---
 
 ### A-03 · Private API (`_`-prefixed) exported across module boundaries
-**Status**: [ ]
+**Status**: [x] *(WP-10)*
 
 `_GenericGroup`, `_collect_defs_schemas`, `_collect_shared_schemas`, `_build_models_context`, `_classify_model_imports`, `_extract_model_class_names`, `_has_security`, `_annotated_base_type` — all prefixed `_` (private by convention) but imported across module boundaries. This creates invisible coupling and makes refactoring risky.
 
-**Fix**: Promote these to public API (remove `_` prefix) or move them to a shared internal module with explicit `__all__`.
+**Fix**: Promoted all 11 cross-module symbols to public API (removed `_` prefix). Consolidated duplicate `_has_security` in `servicetestscaffold.py` — now imports from `generator.py`.
 
 ---
 
@@ -438,13 +438,13 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) | Fixed (WP-9) |
-|---|---|---|---|---|---|---|---|
-| Bugs | 14 | 0 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 | — |
-| Missing OAS features | 10 | 2 | F-01, F-06 | — | F-03 | F-02 | F-04, F-05, F-09, F-10 |
-| Architecture issues | 9 | 1 | A-04 | A-09 | A-01, A-02, A-05 | A-06 | A-07, A-08 |
-| Test gaps | 13 | 1 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 | T-01 |
-| **Total** | **46** | **4** | **12** | **8** | **9** | **6** | **7** |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) | Fixed (WP-9) | Fixed (WP-10) |
+|---|---|---|---|---|---|---|---|---|
+| Bugs | 14 | 0 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 | — | — |
+| Missing OAS features | 10 | 0 | F-01, F-06 | — | F-03 | F-02 | F-04, F-05, F-09, F-10 | F-07, F-08 |
+| Architecture issues | 9 | 0 | A-04 | A-09 | A-01, A-02, A-05 | A-06 | A-07, A-08 | A-03 |
+| Test gaps | 13 | 0 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 | T-01 | — |
+| **Total** | **46** | **0** | **12** | **8** | **9** | **6** | **7** | **4** |
 
 ### Priority
 
@@ -452,5 +452,4 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 |---|---|
 | **High** | *(all resolved)* |
 | **Medium** | *(all resolved)* |
-| **Low (done)** | B-02, B-03, B-04, B-05, B-09, B-13, B-14, F-02, F-03, F-04, F-05, F-09, F-10, A-01, A-02, A-05, A-06, A-07, A-08, A-09, T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-10, T-11, T-12, T-13 |
-| **Low (deferred)** | F-07, F-08, A-03 |
+| **Low** | *(all resolved)* |

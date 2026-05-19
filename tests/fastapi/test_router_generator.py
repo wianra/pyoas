@@ -780,3 +780,39 @@ def test_router_selective_clean_removes_only_target_tag_file(
 
     assert (routers_dir / "users.py").exists(), "users.py should be regenerated"
     assert (routers_dir / "orders.py").exists(), "orders.py must not be deleted"
+
+
+# ---------------------------------------------------------------------------
+# F-07: OAS callbacks — router comment
+# ---------------------------------------------------------------------------
+
+CALLBACKS_FIXTURE = Path(__file__).parents[1] / "fixtures" / "callbacks.yaml"
+
+
+def test_router_emits_callback_note_comment(tmp_path: Path) -> None:
+    """When an operation defines OAS callbacks, the generated router includes a NOTE comment."""
+    routers_dir = tmp_path / "routers"
+    cfg = _make_config(str(CALLBACKS_FIXTURE), str(routers_dir))
+    RouterGenerator(cfg).generate()
+
+    subscriptions_py = routers_dir / "subscriptions.py"
+    assert subscriptions_py.exists()
+    src = subscriptions_py.read_text()
+    assert "NOTE" in src
+    assert "onEvent" in src
+    assert "onExpiry" in src
+
+
+def test_router_no_callback_comment_when_absent(tmp_path: Path) -> None:
+    """No callback NOTE comment when no callbacks are defined in the spec."""
+    routers_dir = tmp_path / "routers"
+    fixtures = Path(__file__).parents[1] / "fixtures"
+    cfg = _make_config(str(fixtures / "petstore_3.0.yaml"), str(routers_dir))
+    RouterGenerator(cfg).generate()
+
+    for py_file in routers_dir.glob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+        src = py_file.read_text()
+        assert "unprocessed_callbacks" not in src
+        assert "# NOTE: the following operations define OAS callbacks" not in src
