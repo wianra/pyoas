@@ -10,16 +10,15 @@ dependencies = [
     "openapi-spec-validator>=0.7",
     "pydantic>=2.9",
     "pyyaml>=6.0",
-    "ruff>=0.4",
     "typer>=0.12",
     "watchdog>=3.0",
-    "polyfactory>=2.0",
 ]
 
 [project.optional-dependencies]
 fastapi = ["fastapi>=0.110"]
 claude = []
-all = ["pyoas[fastapi,claude]"]
+testing = ["polyfactory>=2.0"]
+all = ["pyoas[fastapi,claude,testing]"]
 
 [project.scripts]
 pyoas = "pyoas.core.cli:app"
@@ -34,6 +33,7 @@ module-name = "pyoas"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.4",
     "syrupy>=4.0",
     "types-pyyaml>=6.0.12.20260408",
     "httpx>=0.27",

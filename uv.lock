@@ -911,10 +911,8 @@ dependencies = [
     { name = "jinja2" },
     { name = "jsonref" },
     { name = "openapi-spec-validator" },
-    { name = "polyfactory" },
     { name = "pydantic" },
     { name = "pyyaml" },
-    { name = "ruff" },
     { name = "typer" },
     { name = "watchdog" },
 ]
@@ -922,9 +920,13 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "fastapi" },
+    { name = "polyfactory" },
 ]
 fastapi = [
     { name = "fastapi" },
+]
+testing = [
+    { name = "polyfactory" },
 ]
 
 [package.dev-dependencies]
@@ -934,6 +936,7 @@ dev = [
     { name = "mkdocs-material" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "ruff" },
     { name = "syrupy" },
     { name = "types-pyyaml" },
 ]
@@ -944,15 +947,14 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "jsonref", specifier = ">=1.1" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
-    { name = "polyfactory", specifier = ">=2.0" },
+    { name = "polyfactory", marker = "extra == 'testing'", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "pyoas", extras = ["fastapi", "claude"], marker = "extra == 'all'" },
+    { name = "pyoas", extras = ["fastapi", "claude", "testing"], marker = "extra == 'all'" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.4" },
     { name = "typer", specifier = ">=0.12" },
     { name = "watchdog", specifier = ">=3.0" },
 ]
-provides-extras = ["fastapi", "claude", "all"]
+provides-extras = ["fastapi", "claude", "testing", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -961,6 +963,7 @@ dev = [
     { name = "mkdocs-material", specifier = ">=9.7.6" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.4" },
     { name = "syrupy", specifier = ">=4.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260408" },
 ]
