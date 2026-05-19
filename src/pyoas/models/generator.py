@@ -152,6 +152,12 @@ class ModelGenerator:
         generic_groups = detect_generic_groups_global(
             raw_components_schemas, schema_tag_map
         )
+        # B-10: stable fingerprint of home_tag assignments so that a change in
+        # placement (e.g. Paginated moving from tag-local to shared) busts every
+        # affected tag's cache.
+        _generic_groups_fingerprint: dict[str, str | None] = {
+            name: g.home_tag for name, g in sorted(generic_groups.items())
+        }
 
         # Build a lookup from schema_name → (resolved schema, raw schema) for
         # constructing virtual base schema entries.
@@ -197,7 +203,11 @@ class ModelGenerator:
                     if name in raw_components_schemas
                 }
                 _content_json = _json.dumps(
-                    {"tag": tag, "schemas": _tag_raw_schemas},
+                    {
+                        "tag": tag,
+                        "schemas": _tag_raw_schemas,
+                        "generic_groups": _generic_groups_fingerprint,
+                    },
                     sort_keys=True,
                     default=str,
                 )
@@ -288,7 +298,11 @@ class ModelGenerator:
                     if s["name"] in raw_components_schemas
                 }
                 _shared_content = _json.dumps(
-                    {"tag": "shared", "schemas": _shared_raw_schemas},
+                    {
+                        "tag": "shared",
+                        "schemas": _shared_raw_schemas,
+                        "generic_groups": _generic_groups_fingerprint,
+                    },
                     sort_keys=True,
                     default=str,
                 )

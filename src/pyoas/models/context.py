@@ -5,6 +5,7 @@ Builds the Jinja2 context dict consumed by the model.py.jinja2 template.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pyoas.core.analysis import (
@@ -174,13 +175,16 @@ def _build_models_context(
         referenced_shared: set[str] = set()
         for rs in rendered_schemas:
             if rs.get("is_alias"):
+                alias_type = rs.get("alias_type", "")
                 for sname in all_shared_names:
-                    if sname in rs.get("alias_type", ""):
+                    if re.search(r"\b" + re.escape(sname) + r"\b", alias_type):
                         referenced_shared.add(sname)
             else:
                 for f in rs.get("fields", []):
                     for sname in all_shared_names:
-                        if sname in f["python_type"]:
+                        if re.search(
+                            r"\b" + re.escape(sname) + r"\b", f["python_type"]
+                        ):
                             referenced_shared.add(sname)
                 # Also check base class names used in inheritance
                 for base_name in rs.get("bases", []):
