@@ -259,3 +259,32 @@ def test_not_keyword_returns_any_with_warning() -> None:
     assert result == "Any"
     assert any("not" in str(w.message).lower() for w in caught)
     assert any(issubclass(w.category, UserWarning) for w in caught)
+
+
+# ---------------------------------------------------------------------------
+# OAS 3.1 const keyword (F-03 / T-10)
+# ---------------------------------------------------------------------------
+
+
+def test_const_string() -> None:
+    assert schema_to_python_type({"const": "active"}) == 'Literal["active"]'
+
+
+def test_const_integer() -> None:
+    assert schema_to_python_type({"const": 42}) == "Literal[42]"
+
+
+def test_const_boolean() -> None:
+    assert schema_to_python_type({"const": True}) == "Literal[True]"
+
+
+def test_const_null() -> None:
+    assert schema_to_python_type({"const": None}) == "Literal[None]"
+
+
+def test_const_with_type_annotation() -> None:
+    # const takes precedence over the type field
+    assert (
+        schema_to_python_type({"const": "pending", "type": "string"})
+        == 'Literal["pending"]'
+    )

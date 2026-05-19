@@ -19,6 +19,7 @@ from pyoas.core.analysis import (
     find_split_schema_names,
 )
 from pyoas.core.config import Config
+from pyoas.core.parsed_spec import ParsedSpec
 from pyoas.core.parser import SpecParser
 from pyoas.core.renderer import Renderer
 from pyoas.core.resolver import resolve_refs
@@ -47,7 +48,11 @@ class ServiceScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
 
-    def scaffold(self, tag_filter: list[str] | None = None) -> ScaffoldResult:
+    def scaffold(
+        self,
+        tag_filter: list[str] | None = None,
+        parsed_spec: ParsedSpec | None = None,
+    ) -> ScaffoldResult:
         result = ScaffoldResult()
         cfg = self._config
         if not cfg.services.generate and not cfg.services.import_path:
@@ -56,8 +61,12 @@ class ServiceScaffolder:
             )
             return result
 
-        spec_raw = SpecParser(cfg.spec).load()
-        spec = resolve_refs(spec_raw, cfg.spec)
+        if parsed_spec is None:
+            spec_raw = SpecParser(cfg.spec).load()
+            spec = resolve_refs(spec_raw, cfg.spec)
+        else:
+            spec_raw = parsed_spec.raw
+            spec = parsed_spec.resolved
         grouped = extract_tags(spec, default_tag=cfg.default_tag)
         grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
 

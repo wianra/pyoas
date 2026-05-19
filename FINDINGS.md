@@ -2,7 +2,7 @@
 
 > Analysis date: 2026-05-19 · Version: 0.5.1
 >
-> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix · `[~]` in progress (WP-7)
+> Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix · `[~]` in progress (WP-8)
 
 ---
 
@@ -35,7 +35,7 @@ Compounding this: the doctor check in `doctor.py:193` uses `str(k).startswith("2
 ### B-03 · `find_split_schema_names` misses inherited `readOnly`/`writeOnly`
 **Severity**: Medium
 **File**: `core/analysis.py:237-249`
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 
 Only inspects `schema.get("properties")` at the top level. If a schema uses `allOf` inheritance and the **parent** carries `readOnly`/`writeOnly` properties, the child is never added to `split_schema_names`. The router generator then does not substitute the `Write` variant for request bodies of those child schemas.
 
@@ -217,7 +217,7 @@ See B-01. Affects response type resolution, status code selection, and doctor di
 ---
 
 ### F-03 · OAS 3.1 `const` keyword not handled
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 
 `{"const": "active"}` should produce `Literal["active"]`. Currently produces `Any` (no `type`, no `enum`, no composition keyword). The ambiguous-schema doctor check fires, but generation silently falls back.
 
@@ -278,7 +278,7 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ## Architecture & Design Issues
 
 ### A-01 · No config schema validation — unknown keys silently ignored
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 
 `_parse_config` uses `data.get("key", default)` throughout. A misspelled key like `enums-as-literals` (kebab vs. snake) produces no error and the default value applies silently.
 
@@ -287,7 +287,7 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ---
 
 ### A-02 · Spec re-parsed multiple times per `generate` run
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 
 `ServiceScaffolder.scaffold()` and `TestScaffolder.scaffold()` each call `SpecParser.load()` + `resolve_refs()` independently. A full `pyoas generate` (models + routers + services + tests) parses and resolves the spec 4+ times. `ParsedSpec` is correctly shared between `ModelGenerator` and `RouterGenerator` but not passed to scaffolders.
 
@@ -314,7 +314,7 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ---
 
 ### A-05 · Custom templates directory not validated at config load time
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 
 `TemplatesConfig.models` / `TemplatesConfig.routers` paths are not checked for existence or required template files (`model.py.jinja2`, `router.py.jinja2`) until render time. A `TemplateNotFound` error emerges deep in the stack with no reference to the config entry.
 
@@ -365,13 +365,13 @@ Watchdog integration is completely untested. A broken `watch` command would not 
 ---
 
 ### T-02 · `pyoas migrate` — no CLI tests
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 `differ.py` and `migrate.py` are unit-tested in isolation. The `migrate` CLI command itself has no test.
 
 ---
 
 ### T-03 · `pyoas init` — no tests
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 The config file generation command has no test coverage.
 
 ---
@@ -395,7 +395,7 @@ The `include_webhooks=True` path through `ModelGenerator` and `RouterGenerator` 
 ---
 
 ### T-07 · `format.enabled: false` — not tested
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 The format step is always enabled in the test suite. Disabling it is untested.
 
 ---
@@ -413,7 +413,7 @@ Added `tests/fixtures/wildcard_responses.yaml` and 8 new tests in `tests/fastapi
 ---
 
 ### T-10 · OAS 3.1 `const` / `patternProperties` — no type conversion tests
-**Status**: [~] *(WP-7)*
+**Status**: [x] *(WP-7)*
 `test_types.py` has no cases for `const`, `patternProperties`, `if`/`then`/`else`.
 
 ---
@@ -438,21 +438,19 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | In Progress (WP-7) |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) |
 |---|---|---|---|---|---|
-| Bugs | 14 | 2 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 |
+| Bugs | 14 | 1 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 |
 | Missing OAS features | 10 | 7 | F-01, F-06 | — | F-03 |
-| Architecture issues | 9 | 5 | A-04 | A-09 | A-01, A-02, A-05 |
-| Test gaps | 13 | 5 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 |
-| **Total** | **46** | **19** | **12** | **8** | **9** |
+| Architecture issues | 9 | 4 | A-04 | A-09 | A-01, A-02, A-05 |
+| Test gaps | 13 | 4 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 |
+| **Total** | **46** | **16** | **12** | **8** | **9** |
 
 ### Priority
 
 | Priority | Items |
 |---|---|
 | **High** | *(all resolved)* |
-| **Medium (WP-7)** | B-03, A-01, A-02 |
 | **Medium (open)** | F-02 |
-| **Low (WP-7)** | F-03, A-05, T-02, T-03, T-07, T-10 |
-| **Low (done)** | B-02, B-05, B-09, B-13, B-14, A-09, T-12, T-13 |
+| **Low (done)** | B-02, B-03, B-05, B-09, B-13, B-14, F-03, A-01, A-02, A-05, A-09, T-02, T-03, T-07, T-10, T-12, T-13 |
 | **Low (deferred)** | B-04, F-04, F-05, F-07–F-10, A-03, A-06–A-08, T-01, T-04–T-06, T-11 |

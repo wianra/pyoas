@@ -230,22 +230,37 @@ def has_circular_refs(
 def find_split_schema_names(spec_raw: dict[str, Any]) -> set[str]:
     """Return schema names that will be split into Read/Write variants.
 
-    A schema is split when any of its properties carries ``readOnly: true``
-    or ``writeOnly: true``.  The router generator uses this set to substitute
-    ``{Name}Write`` for request bodies and keep ``{Name}`` (= ``{Name}Read``
-    alias) for response types.
+    A schema is split when any of its properties (directly, or inherited via
+    ``allOf``) carries ``readOnly: true`` or ``writeOnly: true``.
     """
     schemas = spec_raw.get("components", {}).get("schemas", {})
     result: set[str] = set()
-    for name, schema in schemas.items():
-        if not isinstance(schema, dict):
-            continue
+
+    def _has_split_props(schema: dict[str, Any], visited: set[str]) -> bool:
         for prop_schema in (schema.get("properties") or {}).values():
             if isinstance(prop_schema, dict) and (
                 prop_schema.get("readOnly") or prop_schema.get("writeOnly")
             ):
-                result.add(name)
-                break
+                return True
+        for sub in schema.get("allOf") or []:
+            if not isinstance(sub, dict):
+                continue
+            ref = sub.get("$ref", "")
+            if ref.startswith("#/components/schemas/"):
+                ref_name = ref.split("/")[-1]
+                if ref_name not in visited and ref_name in schemas:
+                    visited.add(ref_name)
+                    if _has_split_props(schemas[ref_name], visited):
+                        return True
+            elif _has_split_props(sub, visited):
+                return True
+        return False
+
+    for name, schema in schemas.items():
+        if not isinstance(schema, dict):
+            continue
+        if _has_split_props(schema, {name}):
+            result.add(name)
     return result
 
 

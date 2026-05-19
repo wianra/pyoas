@@ -26,6 +26,14 @@ def test_load_minimal_config(tmp_path: Path) -> None:
 
 
 def test_load_full_config(tmp_path: Path) -> None:
+    # Create stub template dirs required by A-05 validation
+    models_tmpl = tmp_path / "custom" / "model_templates"
+    models_tmpl.mkdir(parents=True)
+    (models_tmpl / "model.py.jinja2").write_text("# stub")
+    routers_tmpl = tmp_path / "custom" / "router_templates"
+    routers_tmpl.mkdir(parents=True)
+    (routers_tmpl / "router.py.jinja2").write_text("# stub")
+
     cfg_file = tmp_path / "pyoas.yaml"
     cfg_file.write_text(
         dedent("""\
@@ -257,3 +265,51 @@ def test_invalid_request_extra_value_raises(tmp_path: Path, value: str) -> None:
 def test_invalid_extra_value_raises_on_direct_instantiation() -> None:
     with pytest.raises(ValueError, match="model_config.extra"):
         ModelConfig(extra="invalid")
+
+
+# ---------------------------------------------------------------------------
+# Unknown config key validation (A-01)
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_top_level_key_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\nenums-as-literals: true\n")
+    with pytest.raises(ValueError, match="Unknown config key"):
+        load_config(str(cfg_file))
+
+
+def test_multiple_unknown_keys_listed_in_error(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\nfoo: 1\nbar: 2\n")
+    with pytest.raises(ValueError, match="Unknown config key"):
+        load_config(str(cfg_file))
+
+
+# ---------------------------------------------------------------------------
+# Custom template directory validation (A-05)
+# ---------------------------------------------------------------------------
+
+
+def test_templates_models_missing_dir_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\ntemplates:\n  models: nonexistent/dir\n")
+    with pytest.raises(ValueError, match="templates.models"):
+        load_config(str(cfg_file))
+
+
+def test_templates_models_missing_template_file_raises(tmp_path: Path) -> None:
+    tmpl_dir = tmp_path / "my_templates"
+    tmpl_dir.mkdir()
+    # directory exists but model.py.jinja2 is absent
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\ntemplates:\n  models: my_templates\n")
+    with pytest.raises(ValueError, match="model.py.jinja2"):
+        load_config(str(cfg_file))
+
+
+def test_templates_routers_missing_dir_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\ntemplates:\n  routers: nonexistent/dir\n")
+    with pytest.raises(ValueError, match="templates.routers"):
+        load_config(str(cfg_file))

@@ -993,3 +993,73 @@ def test_fix_tag_casing_lower(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, spec)
     result = runner.invoke(app, ["fix", "--config", str(cfg), "--tag-casing", "lower"])
     assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# migrate (T-02)
+# ---------------------------------------------------------------------------
+
+
+def test_migrate_identical_specs_exits_zero() -> None:
+    spec = str(FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["migrate", spec, spec])
+    assert result.exit_code == 0, result.output
+
+
+def test_migrate_breaking_change_exits_one() -> None:
+    old = str(FIXTURES / "petstore_3.0.yaml")
+    new = str(FIXTURES / "petstore_migrate_v2.yaml")
+    result = runner.invoke(app, ["migrate", old, new])
+    assert result.exit_code == 1, result.output
+    assert "BREAKING" in result.output
+
+
+def test_migrate_json_output_is_valid() -> None:
+    import json
+
+    spec = str(FIXTURES / "petstore_3.0.yaml")
+    result = runner.invoke(app, ["migrate", spec, spec, "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert "breaking" in data
+    assert "summary" in data
+    assert data["summary"]["breaking"] == 0
+
+
+def test_migrate_breaking_only_suppresses_non_breaking() -> None:
+    old = str(FIXTURES / "petstore_3.0.yaml")
+    new = str(FIXTURES / "petstore_migrate_v2.yaml")
+    result = runner.invoke(app, ["migrate", old, new, "--breaking-only"])
+    assert "NON-BREAKING" not in result.output
+
+
+def test_migrate_missing_file_exits_nonzero() -> None:
+    result = runner.invoke(app, ["migrate", "ghost.yaml", "also_ghost.yaml"])
+    assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# format.enabled: false (T-07)
+# ---------------------------------------------------------------------------
+
+
+def test_models_format_disabled_skips_ruff(tmp_path: Path) -> None:
+    cfg = _write_config(
+        tmp_path, FIXTURES / "petstore_3.0.yaml", format={"enabled": False}
+    )
+    with mock.patch("pyoas.models.generator.format_output") as mock_fmt:
+        result = runner.invoke(app, ["models", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    mock_fmt.assert_not_called()
+    assert (tmp_path / "models" / "pets.py").exists()
+
+
+def test_fastapi_format_disabled_skips_ruff(tmp_path: Path) -> None:
+    cfg = _write_config(
+        tmp_path, FIXTURES / "petstore_3.0.yaml", format={"enabled": False}
+    )
+    with mock.patch("pyoas.fastapi.generator.format_output") as mock_fmt:
+        result = runner.invoke(app, ["fastapi", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    mock_fmt.assert_not_called()
+    assert (tmp_path / "routers" / "pets.py").exists()

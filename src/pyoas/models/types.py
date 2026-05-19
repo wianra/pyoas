@@ -243,6 +243,10 @@ def _base_type(
                 return parts[0]
             return " | ".join(parts)
 
+    # OAS 3.1 const — single fixed value
+    if "const" in schema:
+        return f"Literal[{_format_literal(schema['const'])}]"
+
     raw_type = schema.get("type")
 
     # 3.1 array type: ["T", "null"] — extract the non-null type

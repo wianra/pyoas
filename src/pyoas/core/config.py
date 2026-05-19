@@ -10,6 +10,28 @@ from pyoas.core.utils import derive_import_path
 
 _VALID_PYDANTIC_EXTRA: frozenset[str] = frozenset({"ignore", "allow", "forbid"})
 
+_KNOWN_CONFIG_KEYS: frozenset[str] = frozenset(
+    {
+        "spec",
+        "output",
+        "default_tag",
+        "model_config",
+        "fields",
+        "format",
+        "templates",
+        "services",
+        "tests",
+        "skills",
+        "router",
+        "dependencies",
+        "webhooks",
+        "extensions",
+        "plugins",
+        "router_scaffold",
+        "model_scaffold",
+    }
+)
+
 
 @dataclass
 class OutputConfig:
@@ -151,10 +173,27 @@ class Config:
     model_scaffold: ModelScaffoldConfig = field(default_factory=ModelScaffoldConfig)
 
 
+def _validate_template_dir(path: str, key: str, required_file: str) -> None:
+    p = Path(path)
+    if not p.is_dir():
+        raise ValueError(f"templates.{key} is not a directory: {path!r}")
+    if not (p / required_file).exists():
+        raise ValueError(
+            f"templates.{key} directory is missing {required_file!r}: {path!r}"
+        )
+
+
 def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     if "spec" not in data:
         raise ValueError(
             "Config must contain a 'spec' key pointing to the OpenAPI file"
+        )
+
+    unknown = set(data) - _KNOWN_CONFIG_KEYS
+    if unknown:
+        raise ValueError(
+            f"Unknown config key(s): {sorted(unknown)!r}. "
+            f"Known keys: {sorted(_KNOWN_CONFIG_KEYS)!r}"
         )
 
     out = data.get("output", {})
@@ -196,6 +235,11 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     msc_output = msc.get("output", "src/models")
     tmpl_models = tmpl.get("models")
     tmpl_routers = tmpl.get("routers")
+
+    if tmpl_models:
+        _validate_template_dir(_resolve(tmpl_models), "models", "model.py.jinja2")
+    if tmpl_routers:
+        _validate_template_dir(_resolve(tmpl_routers), "routers", "router.py.jinja2")
 
     return Config(
         spec=_resolve(data["spec"]),

@@ -331,7 +331,9 @@ def generate(
     if cfg.services.generate:
         from pyoas.fastapi import ServiceScaffolder
 
-        svc_result = ServiceScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        svc_result = ServiceScaffolder(cfg).scaffold(
+            tag_filter=tag_filter, parsed_spec=parsed
+        )
         detail = ""
         if svc_result.appended_items:
             files_str = ", ".join(svc_result.appended_files)
@@ -341,8 +343,12 @@ def generate(
     if cfg.tests.generate:
         from pyoas.fastapi import ServiceTestScaffolder, TestScaffolder
 
-        test_result = TestScaffolder(cfg).scaffold(tag_filter=tag_filter)
-        svc_test_result = ServiceTestScaffolder(cfg).scaffold(tag_filter=tag_filter)
+        test_result = TestScaffolder(cfg).scaffold(
+            tag_filter=tag_filter, parsed_spec=parsed
+        )
+        svc_test_result = ServiceTestScaffolder(cfg).scaffold(
+            tag_filter=tag_filter, parsed_spec=parsed
+        )
 
         detail = ""
         if test_result.appended_items:
