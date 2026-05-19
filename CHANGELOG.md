@@ -1,3 +1,18 @@
+## v0.5.2 (2026-05-19)
+
+### Fix
+
+- **drift**: normalise quote style before signature comparison
+- **wp10**: F-07 F-08 A-03
+- **wp9**: F-04 F-05 F-09 F-10 A-07 A-08 T-01
+- **wp8**: B-04 F-02 A-06 T-04 T-05 T-06 T-11
+- **wp7**: B-03 F-03 A-01 A-02 A-05 T-02 T-03 T-07 T-10
+- **wp6**: B-02 B-05 B-06 B-09 B-13 B-14 A-09 T-13
+- **models**: whole-word shared schema name matching; cache includes generic group fingerprint
+- **fastapi**: handle 2XX wildcard + "default" response codes; fix bytes response_model
+- **deps**: move polyfactory to testing extra, ruff to dev group (B-07, A-04)
+- **release**: use pre_bump_hooks so uv.lock lands in the bump commit
+
 ## v0.5.1 (2026-05-19)
 
 ### Fix
