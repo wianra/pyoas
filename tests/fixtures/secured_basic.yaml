@@ -1,0 +1,20 @@
+openapi: "3.0.0"
+info:
+  title: Basic Auth API
+  version: "1.0"
+security:
+  - basicAuth: []
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items (requires basic auth)
+      responses:
+        "200":
+          description: List of items
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic

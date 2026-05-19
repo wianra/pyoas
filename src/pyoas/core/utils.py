@@ -115,11 +115,11 @@ def tag_to_dirname(tag: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_") or "unnamed"
 
 
-def format_output(output_root: Path) -> None:
-    """Run ``ruff format`` on *output_root* (best-effort, silently ignored on failure)."""
+def format_output(*output_roots: Path) -> None:
+    """Run ``ruff format`` on one or more directories (best-effort, silently ignored on failure)."""
     try:
         subprocess.run(  # nosec
-            ["ruff", "format", str(output_root)],
+            ["ruff", "format", *(str(r) for r in output_roots)],
             check=True,
             capture_output=True,
         )

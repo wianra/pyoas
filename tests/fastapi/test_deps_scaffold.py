@@ -59,3 +59,46 @@ def test_scaffold_skips_when_no_secured_operations(tmp_path: Path, capsys) -> No
     assert result.wrote == 0
     stderr = capsys.readouterr().err
     assert "No secured operations" in stderr
+
+
+def test_scaffold_bearer_scheme_uses_http_bearer(tmp_path: Path) -> None:
+    """Bearer scheme produces an HTTPBearer dependency stub."""
+    cfg = _make_cfg(str(FIXTURES / "secured.yaml"), str(tmp_path / "deps"))
+    DependencyScaffolder(cfg).scaffold()
+
+    src = (tmp_path / "deps" / "auth.py").read_text()
+    assert "HTTPBearer" in src
+    assert "HTTPAuthorizationCredentials" in src
+    assert "credentials.credentials" in src
+
+
+def test_scaffold_basic_scheme_uses_http_basic(tmp_path: Path) -> None:
+    """Basic auth scheme produces an HTTPBasic dependency stub."""
+    cfg = _make_cfg(str(FIXTURES / "secured_basic.yaml"), str(tmp_path / "deps"))
+    DependencyScaffolder(cfg).scaffold()
+
+    src = (tmp_path / "deps" / "auth.py").read_text()
+    assert "HTTPBasic" in src
+    assert "HTTPBasicCredentials" in src
+    assert "credentials.username" in src
+
+
+def test_scaffold_apikey_scheme_uses_api_key_header(tmp_path: Path) -> None:
+    """API key scheme produces an APIKeyHeader dependency stub."""
+    cfg = _make_cfg(str(FIXTURES / "secured_apikey.yaml"), str(tmp_path / "deps"))
+    DependencyScaffolder(cfg).scaffold()
+
+    src = (tmp_path / "deps" / "auth.py").read_text()
+    assert "APIKeyHeader" in src
+    assert "api_key" in src
+
+
+def test_scaffold_oauth2_scheme_uses_oauth2_password_bearer(tmp_path: Path) -> None:
+    """OAuth2 scheme produces an OAuth2PasswordBearer dependency stub with the token URL."""
+    cfg = _make_cfg(str(FIXTURES / "secured_scoped.yaml"), str(tmp_path / "deps"))
+    DependencyScaffolder(cfg).scaffold()
+
+    src = (tmp_path / "deps" / "auth.py").read_text()
+    assert "OAuth2PasswordBearer" in src
+    assert "tokenUrl=" in src
+    assert "/token" in src

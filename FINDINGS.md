@@ -46,7 +46,7 @@ Only inspects `schema.get("properties")` at the top level. If a schema uses `all
 ### B-04 · Service scaffolder method insertion targets wrong position via string search
 **Severity**: Low
 **File**: `fastapi/scaffold.py:216-221`
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 
 ```python
 dep_fn = f"async def get_{tag_dirname}_service"
@@ -208,7 +208,7 @@ See B-01. Affects response type resolution, status code selection, and doctor di
 ---
 
 ### F-02 · Security scheme type not used in auth dependency generation
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 
 `components/securitySchemes` is completely ignored. The generated `AuthContext` / `get_auth_context` stubs are always generic with no reference to the actual security type (Bearer JWT, OAuth2, API key, HTTP basic). OAuth2 scopes are emitted as comments only.
 
@@ -323,7 +323,7 @@ In OAS 3.1, `{$ref: "…", nullable: true}` is valid. `schema_to_python_type` re
 ---
 
 ### A-06 · `format_output` invoked separately per output directory
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 
 `ModelGenerator` and `RouterGenerator` each call `format_output(output_root)` independently. A single `ruff format src/generated/` covering both dirs would be faster and require only one subprocess launch.
 
@@ -377,19 +377,19 @@ The config file generation command has no test coverage.
 ---
 
 ### T-04 · `pyoas fix` round-trip — no end-to-end test
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 No test applies `fix_spec`, writes the result, then runs generation and verifies the output is valid Python.
 
 ---
 
 ### T-05 · Custom templates — no tests
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 The `TemplatesConfig` override mechanism (user-provided Jinja2 templates) has no test.
 
 ---
 
 ### T-06 · Webhook generation — no tests
-**Status**: [ ]
+**Status**: [x] *(WP-8 — tests already present: `test_generate_webhooks_produces_models`, `test_generate_webhooks_router_output`)*
 The `include_webhooks=True` path through `ModelGenerator` and `RouterGenerator` has no test.
 
 ---
@@ -419,7 +419,7 @@ Added `tests/fixtures/wildcard_responses.yaml` and 8 new tests in `tests/fastapi
 ---
 
 ### T-11 · Multi-tag filter + `--clean` — no end-to-end test
-**Status**: [ ]
+**Status**: [x] *(WP-8)*
 The selective-clean code path (`tag_filter + clean=True`) removes individual tag files rather than the whole directory. This path is not tested end-to-end.
 
 ---
@@ -438,19 +438,19 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) |
-|---|---|---|---|---|---|
-| Bugs | 14 | 1 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 |
-| Missing OAS features | 10 | 7 | F-01, F-06 | — | F-03 |
-| Architecture issues | 9 | 4 | A-04 | A-09 | A-01, A-02, A-05 |
-| Test gaps | 13 | 4 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 |
-| **Total** | **46** | **16** | **12** | **8** | **9** |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) |
+|---|---|---|---|---|---|---|
+| Bugs | 14 | 0 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 |
+| Missing OAS features | 10 | 6 | F-01, F-06 | — | F-03 | F-02 |
+| Architecture issues | 9 | 3 | A-04 | A-09 | A-01, A-02, A-05 | A-06 |
+| Test gaps | 13 | 2 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 |
+| **Total** | **46** | **11** | **12** | **8** | **9** | **6** |
 
 ### Priority
 
 | Priority | Items |
 |---|---|
 | **High** | *(all resolved)* |
-| **Medium (open)** | F-02 |
-| **Low (done)** | B-02, B-03, B-05, B-09, B-13, B-14, F-03, A-01, A-02, A-05, A-09, T-02, T-03, T-07, T-10, T-12, T-13 |
-| **Low (deferred)** | B-04, F-04, F-05, F-07–F-10, A-03, A-06–A-08, T-01, T-04–T-06, T-11 |
+| **Medium** | *(all resolved)* |
+| **Low (done)** | B-02, B-03, B-04, B-05, B-09, B-13, B-14, F-02, F-03, A-01, A-02, A-05, A-06, A-09, T-02, T-03, T-04, T-05, T-06, T-07, T-10, T-11, T-12, T-13 |
+| **Low (deferred)** | F-04, F-05, F-07–F-10, A-03, A-07, A-08, T-01 |

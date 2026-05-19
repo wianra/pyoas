@@ -59,6 +59,7 @@ class RouterGenerator:
         parsed_spec: ParsedSpec | None = None,
         progress_callback: Callable[[str], None] | None = None,
         verbose: bool = False,
+        skip_format: bool = False,
     ) -> list[Path]:
         """
         Generate FastAPI routers for all tags (or a subset via ``tag_filter``).
@@ -231,7 +232,7 @@ class RouterGenerator:
         if use_cache:
             cache.save()
 
-        if cfg.format.enabled:
+        if cfg.format.enabled and not skip_format:
             format_output(output_root)
 
         return written

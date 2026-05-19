@@ -66,6 +66,7 @@ class ModelGenerator:
         parsed_spec: ParsedSpec | None = None,
         progress_callback: Callable[[str], None] | None = None,
         verbose: bool = False,
+        skip_format: bool = False,
     ) -> list[Path]:
         """
         Generate Pydantic v2 models for all tags (or a subset via ``tag_filter``).
@@ -354,7 +355,7 @@ class ModelGenerator:
         if use_cache:
             cache.save()
 
-        if cfg.format.enabled:
+        if cfg.format.enabled and not skip_format:
             format_output(output_root)
 
         return written

@@ -435,6 +435,67 @@ def test_fix_json_spec_round_trips_as_json(tmp_path: Path) -> None:
     json.loads(spec_dst.read_text())
 
 
+def test_fix_then_generate_produces_valid_python(tmp_path: Path) -> None:
+    """fix + models: spec with missing operationIds is fixed and then generates valid Python."""
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "No IDs", "version": "1.0"},
+        "paths": {
+            "/pets": {
+                "get": {
+                    "tags": ["pets"],
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/Pet"}
+                                }
+                            },
+                        }
+                    },
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "Pet": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {"name": {"type": "string"}},
+                }
+            }
+        },
+    }
+    spec_dst = tmp_path / "spec.yaml"
+    spec_dst.write_text(yaml.dump(spec), encoding="utf-8")
+    models_dir = tmp_path / "models"
+    cfg_path = tmp_path / "pyoas.yaml"
+    cfg_path.write_text(
+        yaml.dump(
+            {
+                "spec": str(spec_dst),
+                "output": {
+                    "models": str(models_dir),
+                    "routers": str(tmp_path / "routers"),
+                },
+                "format": {"enabled": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    fix_result = runner.invoke(app, ["fix", "--config", str(cfg_path)])
+    assert fix_result.exit_code == 0, fix_result.output
+    assert "assign_operation_id" in fix_result.output
+
+    gen_result = runner.invoke(app, ["models", "--config", str(cfg_path)])
+    assert gen_result.exit_code == 0, gen_result.output
+
+    for py_file in models_dir.rglob("*.py"):
+        source = py_file.read_text(encoding="utf-8")
+        compile(source, str(py_file), "exec")
+
+
 def test_fix_exits_one_when_unfixable_errors_remain(tmp_path: Path) -> None:
     # Spec with BOTH a fixable issue (missing operationId) and an unfixable error
     # (unresolvable $ref). After fix, doctor should still report the ref error → exit 1.

@@ -1,0 +1,21 @@
+openapi: "3.0.0"
+info:
+  title: API Key Auth API
+  version: "1.0"
+security:
+  - apiKeyAuth: []
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items (requires API key)
+      responses:
+        "200":
+          description: List of items
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key

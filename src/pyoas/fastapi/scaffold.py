@@ -44,6 +44,26 @@ from .params import _annotated_base_type, build_function_params, resolve_respons
 _DEFAULT_TEMPLATES = Path(__file__).parent / "templates"
 
 
+def _find_function_char_offset(src: str, func_name: str) -> int | None:
+    """Return the character offset of *func_name*'s def line, located via AST.
+
+    Falls back to None when the function is absent or the source cannot be parsed,
+    avoiding the string-search false-positive bug (B-04).
+    """
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return None
+    lines = src.splitlines(keepends=True)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == func_name
+        ):
+            return sum(len(lines[i]) for i in range(node.lineno - 1))
+    return None
+
+
 class ServiceScaffolder:
     def __init__(self, config: Config) -> None:
         self._config = config
@@ -222,9 +242,10 @@ class ServiceScaffolder:
                 else:
                     existing_src = import_line + "\n\n" + existing_src
 
-        dep_fn = f"async def get_{tag_dirname}_service"
-        if dep_fn in existing_src:
-            insert_at = existing_src.index(dep_fn)
+        insert_at = _find_function_char_offset(
+            existing_src, f"get_{tag_dirname}_service"
+        )
+        if insert_at is not None:
             updated = existing_src[:insert_at] + stubs + "\n" + existing_src[insert_at:]
         else:
             updated = existing_src.rstrip() + "\n\n" + stubs

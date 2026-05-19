@@ -22,6 +22,7 @@ from pyoas.core.config import (
     FormatConfig,
     ModelConfig,
     OutputConfig,
+    TemplatesConfig,
     WebhooksConfig,
 )
 from pyoas.models.classifier import _collect_shared_schemas
@@ -1047,3 +1048,79 @@ def test_generate_rollback_on_plugin_failure(tmp_path: Path) -> None:
         )
     finally:
         del sys.modules["_test_rollback_plugin"]
+
+
+# ---------------------------------------------------------------------------
+# Custom templates (T-05)
+# ---------------------------------------------------------------------------
+
+
+def test_model_generator_uses_custom_template(tmp_path: Path) -> None:
+    """A custom model.py.jinja2 in TemplatesConfig.models overrides the built-in."""
+    custom_tmpl_dir = tmp_path / "custom_templates"
+    custom_tmpl_dir.mkdir()
+    (custom_tmpl_dir / "model.py.jinja2").write_text(
+        "# CUSTOM_TEMPLATE_MARKER\n", encoding="utf-8"
+    )
+    output_dir = tmp_path / "models"
+    cfg = Config(
+        spec=str(Path(__file__).parents[1] / "fixtures" / "petstore_3.0.yaml"),
+        output=OutputConfig(models=str(output_dir), routers=""),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+        templates=TemplatesConfig(models=str(custom_tmpl_dir)),
+    )
+    ModelGenerator(cfg).generate()
+
+    pets_src = (output_dir / "pets.py").read_text()
+    assert "CUSTOM_TEMPLATE_MARKER" in pets_src
+    assert "class Pet" not in pets_src
+
+
+# ---------------------------------------------------------------------------
+# Selective clean — tag_filter + clean (T-11)
+# ---------------------------------------------------------------------------
+
+
+def test_selective_clean_removes_only_target_tag_file(
+    multi_tag: Path, tmp_path: Path
+) -> None:
+    """tag_filter + clean=True removes only the filtered tag's file, not others."""
+    output_dir = tmp_path / "models"
+    cfg = Config(
+        spec=str(multi_tag),
+        output=OutputConfig(models=str(output_dir), routers=""),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+    )
+    ModelGenerator(cfg).generate()
+
+    assert (output_dir / "users.py").exists()
+    assert (output_dir / "orders.py").exists()
+
+    # Selective clean on "users" — only users.py should be removed before regeneration
+    ModelGenerator(cfg).generate(tag_filter=["users"], clean=True)
+
+    assert (output_dir / "users.py").exists(), "users.py should be regenerated"
+    assert (output_dir / "orders.py").exists(), "orders.py must not be deleted"
+
+
+def test_selective_clean_does_not_delete_shared_file(
+    multi_tag: Path, tmp_path: Path
+) -> None:
+    """Selective clean does not remove shared.py when only one tag is targeted."""
+    output_dir = tmp_path / "models"
+    cfg = Config(
+        spec=str(multi_tag),
+        output=OutputConfig(models=str(output_dir), routers=""),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+    )
+    ModelGenerator(cfg).generate()
+
+    # shared.py should exist (Address is referenced by both tags)
+    assert (output_dir / "shared.py").exists()
+
+    ModelGenerator(cfg).generate(tag_filter=["users"], clean=True)
+
+    assert (output_dir / "shared.py").exists(), "shared.py must not be deleted"

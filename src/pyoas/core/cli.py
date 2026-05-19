@@ -290,6 +290,8 @@ def generate(
     parsed = _run_spec_loaded_hooks(plugins, ParsedSpec.from_config(cfg))
     callback = None if quiet else lambda msg: typer.echo(msg, err=True)
 
+    from pyoas.core.utils import format_output as _format_output
+
     model_gen = ModelGenerator(cfg)  # type: ignore[possibly-undefined]
     model_written = model_gen.generate(
         tag_filter=tag_filter,
@@ -297,6 +299,7 @@ def generate(
         parsed_spec=parsed,
         progress_callback=callback,
         verbose=verbose,
+        skip_format=True,
     )
     router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
     router_written = router_gen.generate(
@@ -305,7 +308,10 @@ def generate(
         parsed_spec=parsed,
         progress_callback=callback,
         verbose=verbose,
+        skip_format=True,
     )
+    if cfg.format.enabled:
+        _format_output(Path(cfg.output.models), Path(cfg.output.routers))
     if not quiet:
         for path in model_written + router_written:
             typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))

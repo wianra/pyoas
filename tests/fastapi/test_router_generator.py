@@ -757,3 +757,26 @@ paths:
     raw_op = spec_raw["paths"]["/download"]["get"]
     result = resolve_response_type(op, raw_operation=raw_op)
     assert result == "Response"
+
+
+# ---------------------------------------------------------------------------
+# Selective clean — tag_filter + clean (T-11)
+# ---------------------------------------------------------------------------
+
+
+def test_router_selective_clean_removes_only_target_tag_file(
+    multi_tag: Path, tmp_path: Path
+) -> None:
+    """Router generator: tag_filter + clean=True removes only the filtered tag's
+    router file, leaving other tags' files intact."""
+    routers_dir = tmp_path / "routers"
+    cfg = _make_config(str(multi_tag), str(routers_dir))
+    RouterGenerator(cfg).generate()
+
+    assert (routers_dir / "users.py").exists()
+    assert (routers_dir / "orders.py").exists()
+
+    RouterGenerator(cfg).generate(tag_filter=["users"], clean=True)
+
+    assert (routers_dir / "users.py").exists(), "users.py should be regenerated"
+    assert (routers_dir / "orders.py").exists(), "orders.py must not be deleted"
