@@ -39,53 +39,65 @@ no generic base class is generated for them.~~
 
 ## Design Concerns
 
-### D1 — Signature drift detection is regex-based, not AST-based
-**File**: `src/pyoas/fastapi/scaffold.py:383` (`_actual_sig_str`)
+### ~~D1 — Signature drift detection is regex-based, not AST-based~~
+~~**File**: `src/pyoas/fastapi/scaffold.py:383` (`_actual_sig_str`)~~
 
-Extracts method signatures from existing source via regex. Breaks for decorated methods
+~~Extracts method signatures from existing source via regex. Breaks for decorated methods
 (decorator on the preceding line causes the match to fail silently) and methods with
-user-added type comments. Result: drift goes unreported for those methods.
+user-added type comments. Result: drift goes unreported for those methods.~~
+
+~~**Fix**: replaced regex with `ast.parse` + `ast.walk` in both `_actual_sig_str` (scaffold.py) and `_actual_router_sig_str` (routerscaffold.py). Uses `ast.unparse` on annotations and return types for canonical output. Covers decorated methods and any valid Python syntax.~~
 
 ---
 
-### D2 — `zip()` without length guard across all scaffolders
-**Files**: `scaffold.py:93`, `testscaffold.py:373`, `routerscaffold.py`
+### ~~D2 — `zip()` without length guard across all scaffolders~~
+~~**Files**: `scaffold.py:93`, `testscaffold.py:373`, `routerscaffold.py`~~
 
-`zip(operations, raw_operations)` silently truncates if resolved/raw operation counts
-diverge for a tag. Should never happen in practice, but the failure mode is silent data loss.
+~~`zip(operations, raw_operations)` silently truncates if resolved/raw operation counts
+diverge for a tag. Should never happen in practice, but the failure mode is silent data loss.~~
+
+~~**Fix**: added `strict=True` to all 8 call sites across scaffold.py, testscaffold.py, routerscaffold.py, generator.py, servicetestscaffold.py, cli.py.~~
 
 ---
 
-### D3 — No rollback on partial plugin failures
-**File**: `src/pyoas/models/generator.py:368`
+### ~~D3 — No rollback on partial plugin failures~~
+~~**File**: `src/pyoas/models/generator.py:368`~~
 
-Plugin hooks run per-tag before writing. If a plugin raises mid-loop, some tag files are
+~~Plugin hooks run per-tag before writing. If a plugin raises mid-loop, some tag files are
 already written while others are not. Cache is not updated for incomplete tags, so the next
-run re-generates them — but the output directory is inconsistent until then.
+run re-generates them — but the output directory is inconsistent until then.~~
+
+~~**Fix**: added `newly_written` list in both `ModelGenerator.generate()` and `RouterGenerator.generate()`. Each `_write_tag` call is wrapped in try/except; on exception, all newly written tag files are unlinked and the exception re-raised.~~
 
 ---
 
 ## Gaps
 
-### G1 — Doctor misses path-level parameter shadowing
-**File**: `src/pyoas/core/doctor.py:135`
+### ~~G1 — Doctor misses path-level parameter shadowing~~
+~~**File**: `src/pyoas/core/doctor.py:135`~~
 
-Shadowing check only inspects `operation.parameters`. OpenAPI path-item-level parameters
-(inherited by all operations in that path) are not checked, so some shadowing cases go unreported.
+~~Shadowing check only inspects `operation.parameters`. OpenAPI path-item-level parameters
+(inherited by all operations in that path) are not checked, so some shadowing cases go unreported.~~
 
----
-
-### G2 — Hardcoded path param examples ignore spec `example` fields
-**File**: `src/pyoas/fastapi/testscaffold.py:37`
-
-`_PATH_PARAM_EXAMPLES` is a static dict keyed by Python type. If the spec declares
-`example:` on a path parameter, it is never used in generated test paths.
+~~**Fix**: `_check_parameter_shadowing` now merges path-item-level params with operation-level params (operation overrides by `(in, name)` key) before running the check.~~
 
 ---
 
-### G3 — No guard for missing `polyfactory` in generated `conftest.py`
-**Files**: `src/pyoas/fastapi/testscaffold.py`, conftest template
+### ~~G2 — Hardcoded path param examples ignore spec `example` fields~~
+~~**File**: `src/pyoas/fastapi/testscaffold.py:37`~~
 
-Generated `conftest.py` imports `ModelFactory` from `polyfactory`. If the user has
+~~`_PATH_PARAM_EXAMPLES` is a static dict keyed by Python type. If the spec declares
+`example:` on a path parameter, it is never used in generated test paths.~~
+
+~~**Fix**: `build_function_params` now exposes `spec_example` from the raw Parameter Object; `_fill_path_params` uses it as a middle tier between enum values and type-based defaults.~~
+
+---
+
+### ~~G3 — No guard for missing `polyfactory` in generated `conftest.py`~~
+~~**Files**: `src/pyoas/fastapi/testscaffold.py`, conftest template~~
+
+~~Generated `conftest.py` imports `ModelFactory` from `polyfactory`. If the user has
 `pyoas[fastapi]` but not `polyfactory` installed, generated tests fail at import with
-a cryptic `ModuleNotFoundError`. Either add polyfactory as a hard dep or add a clear comment.
+a cryptic `ModuleNotFoundError`. Either add polyfactory as a hard dep or add a clear comment.~~
+
+~~**Not a bug**: `polyfactory>=2.0` is already in base dependencies, always installed with `pyoas`.~~

@@ -138,6 +138,26 @@ def test_detect_drift_signature_changed(tmp_path: Path) -> None:
     assert "actual:" in detail
 
 
+def test_detect_drift_decorated_method_not_confused(tmp_path: Path) -> None:
+    """Decorator before async def must not prevent drift detection from reading the signature."""
+    svc_dir = tmp_path / "services"
+    svc_dir.mkdir()
+    # get_pet has a decorator; signature is wrong (str instead of int) so drift must be found
+    (svc_dir / "pets.py").write_text(
+        "class PetsService:\n"
+        "    async def list_pets(self) -> None:\n        pass\n"
+        "    async def create_pet(self) -> None:\n        pass\n"
+        "    @cache_result\n"
+        "    async def get_pet(self, *, pet_id: str) -> None:\n        pass\n"
+    )
+    cfg = _make_cfg(tmp_path)
+
+    items = detect_service_drift(cfg)
+
+    sig_items = [i for i in items if i.kind == "signature_changed"]
+    assert any(i.method == "get_pet" for i in sig_items)
+
+
 # ---------------------------------------------------------------------------
 # clean (no drift)
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from pyoas.core.analysis import (
@@ -986,3 +987,63 @@ def test_generate_inline_defs_31(
         assert pets_src == snapshot(name="inline_defs_31_pets")
         assert orders_src == snapshot(name="inline_defs_31_orders")
         assert shared_src == snapshot(name="inline_defs_31_shared")
+
+
+# ---------------------------------------------------------------------------
+# Plugin failure rollback
+# ---------------------------------------------------------------------------
+
+
+def test_generate_rollback_on_plugin_failure(tmp_path: Path) -> None:
+    """Files written before a mid-loop plugin failure are deleted on rollback."""
+    import sys
+    import types
+
+    from pyoas.core.plugins import PluginError
+
+    call_count = 0
+
+    class _FailOnSecondTag:
+        name = "fail-on-second"
+        version = "0.0.0"
+
+        def on_spec_loaded(self, spec, resolved):
+            return spec, resolved
+
+        def on_model_file_written(self, tag, path, content):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                raise PluginError("deliberate failure on second tag")
+            return content
+
+        def on_router_file_written(self, tag, path, content):
+            return content
+
+        def on_generate_complete(self, stats):
+            pass
+
+    mod = types.ModuleType("_test_rollback_plugin")
+    mod._FailOnSecondTag = _FailOnSecondTag  # type: ignore[attr-defined]
+    sys.modules["_test_rollback_plugin"] = mod
+
+    models_dir = tmp_path / "models"
+    petstore = Path(__file__).parents[1] / "fixtures" / "petstore_3.0.yaml"
+    cfg = Config(
+        spec=str(petstore),
+        output=OutputConfig(models=str(models_dir), routers=""),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+        plugins=["_test_rollback_plugin:_FailOnSecondTag"],
+    )
+
+    try:
+        with pytest.raises(PluginError, match="deliberate failure"):
+            ModelGenerator(cfg).generate(clean=True)
+
+        tag_files = [f for f in models_dir.glob("*.py") if f.name != "__init__.py"]
+        assert tag_files == [], (
+            f"Rollback should have deleted tag files, found: {tag_files}"
+        )
+    finally:
+        del sys.modules["_test_rollback_plugin"]

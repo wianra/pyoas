@@ -4,6 +4,7 @@ RouterScaffolder — writes router stub files, adding missing endpoints on re-ru
 
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -384,38 +385,31 @@ def _expected_router_sig_str(
 
 
 def _actual_router_sig_str(src: str, fn_name: str) -> str | None:
-    """Extract and normalise the signature of a module-level async def from source."""
-    m = re.search(
-        rf"async def {re.escape(fn_name)}\((.*?)\)(\s*->\s*([^\n:]+?))?:",
-        src,
-        re.DOTALL,
-    )
-    if not m:
+    """Extract and normalise the signature of a module-level async def using AST."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
         return None
-    params_raw = re.sub(r"\s+", " ", m.group(1) or "").strip()
-    ret_raw = (m.group(3) or "None").strip()
-    # Split on commas not inside brackets.
-    parts: list[str] = []
-    depth = 0
-    buf: list[str] = []
-    for ch in params_raw:
-        if ch in "([{":
-            depth += 1
-        elif ch in ")]}":
-            depth -= 1
-        if ch == "," and depth == 0:
-            parts.append("".join(buf).strip())
-            buf = []
-        else:
-            buf.append(ch)
-    if buf:
-        parts.append("".join(buf).strip())
-    # Filter out empty and keyword-only marker "*"; also strip service Depends params.
-    params = [p.rstrip(",") for p in parts if p not in ("", "*")]
-    params = [p for p in params if not p.startswith("service:")]
-    if params:
-        return f"(*, {', '.join(params)}) -> {ret_raw}"
-    return f"() -> {ret_raw}"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == fn_name:
+            return _router_sig_from_ast(node)
+    return None
+
+
+def _router_sig_from_ast(func: ast.AsyncFunctionDef) -> str:
+    parts = []
+    for arg, default in zip(func.args.kwonlyargs, func.args.kw_defaults):
+        if arg.arg == "service":
+            continue  # injected by scaffolder, not part of spec
+        ann = ast.unparse(arg.annotation).strip() if arg.annotation else ""
+        part = f"{arg.arg}: {ann}" if ann else arg.arg
+        if default is not None:
+            part += f" = {ast.unparse(default)}"
+        parts.append(part)
+    ret = ast.unparse(func.returns).strip() if func.returns else "None"
+    if parts:
+        return f"(*, {', '.join(parts)}) -> {ret}"
+    return f"() -> {ret}"
 
 
 def _emit_router_drift_warnings(warnings: list[str], config: Config) -> None:

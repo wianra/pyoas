@@ -170,6 +170,7 @@ class ModelGenerator:
         _shared_defs_names: set[str] = {e["name"] for e in shared_defs}
 
         written: list[Path] = []
+        newly_written: list[Path] = []
         tag_model_names: dict[str, list[str]] = {}
         for tag in grouped:
             tag_schemas = _collect_tag_schemas(
@@ -209,18 +210,25 @@ class ModelGenerator:
                     written.append(_out_file)
                     continue
             _t0 = time.perf_counter()
-            tag_model_names[tag] = self._write_tag(
-                tag,
-                all_schemas,
-                renderer,
-                output_root,
-                schema_tag_map,
-                request_only_names,
-                generic_groups,
-                spec_hash=spec_hash,
-                shared_defs_names=_shared_defs_names,
-            )
-            written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            try:
+                tag_model_names[tag] = self._write_tag(
+                    tag,
+                    all_schemas,
+                    renderer,
+                    output_root,
+                    schema_tag_map,
+                    request_only_names,
+                    generic_groups,
+                    spec_hash=spec_hash,
+                    shared_defs_names=_shared_defs_names,
+                )
+            except Exception:
+                for _f in newly_written:
+                    _f.unlink(missing_ok=True)
+                raise
+            _tag_file = output_root / f"{tag_to_dirname(tag)}.py"
+            written.append(_tag_file)
+            newly_written.append(_tag_file)
             if use_cache:
                 cache.update(tag, _tag_hash)
             if progress_callback:

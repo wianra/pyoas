@@ -149,6 +149,7 @@ class RouterGenerator:
         config_hash = compute_config_hash(cfg) if use_cache else ""
 
         written: list[Path] = []
+        newly_written: list[Path] = []
         for tag, operations in grouped.items():
             raw_operations = grouped_raw.get(tag, [])
             # Attach the raw (unresolved) operation so params can recover $ref names.
@@ -171,20 +172,27 @@ class RouterGenerator:
                     written.append(_out_file)
                     continue
             _t0 = time.perf_counter()
-            self._write_tag(
-                tag,
-                merged,
-                renderer,
-                output_root,
-                generic_name_map,
-                schema_tag_map=schema_tag_map,
-                generic_groups=generic_groups,
-                split_schema_names=split_schema_names,
-                inline_schema_tag_map=inline_schema_tag_map,
-                global_security=global_security,
-                spec_hash=spec_hash,
-            )
-            written.append(output_root / f"{tag_to_dirname(tag)}.py")
+            try:
+                self._write_tag(
+                    tag,
+                    merged,
+                    renderer,
+                    output_root,
+                    generic_name_map,
+                    schema_tag_map=schema_tag_map,
+                    generic_groups=generic_groups,
+                    split_schema_names=split_schema_names,
+                    inline_schema_tag_map=inline_schema_tag_map,
+                    global_security=global_security,
+                    spec_hash=spec_hash,
+                )
+            except Exception:
+                for _f in newly_written:
+                    _f.unlink(missing_ok=True)
+                raise
+            _tag_file = output_root / f"{tag_to_dirname(tag)}.py"
+            written.append(_tag_file)
+            newly_written.append(_tag_file)
             if use_cache:
                 cache.update(tag, _tag_hash)
             if progress_callback:
