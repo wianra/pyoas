@@ -151,6 +151,7 @@ def _find_referenced_schemas(
     obj: Any,
     components_schemas: dict[str, Any],
     _visited: set[int] | None = None,
+    _strong_refs: list[Any] | None = None,
 ) -> list[str]:
     """
     Recursively find all component schema names referenced from ``obj``.
@@ -158,15 +159,19 @@ def _find_referenced_schemas(
     Operates on the *raw* (unresolved) spec, following ``$ref`` strings.
     Transitive references are expanded.
 
-    The ``_visited`` set uses Python object ids — dicts in ``spec_raw`` are not
-    garbage-collected during traversal, so pointer identity is stable.
+    Cycle detection uses ``id()`` for O(1) lookup.  ``_strong_refs`` holds
+    a live reference to every visited object so the GC cannot reclaim them
+    and reuse their address for a new object during the same traversal.
     """
     if _visited is None:
         _visited = set()
+        _strong_refs = []
 
     if id(obj) in _visited:
         return []
     _visited.add(id(obj))
+    if _strong_refs is not None:
+        _strong_refs.append(obj)
 
     names: list[str] = []
     if isinstance(obj, dict):
@@ -185,7 +190,7 @@ def _find_referenced_schemas(
                     if def_schema is not None:
                         names.extend(
                             _find_referenced_schemas(
-                                def_schema, components_schemas, _visited
+                                def_schema, components_schemas, _visited, _strong_refs
                             )
                         )
                 else:
@@ -195,15 +200,26 @@ def _find_referenced_schemas(
                         # Follow transitive references within the referenced schema.
                         names.extend(
                             _find_referenced_schemas(
-                                components_schemas[name], components_schemas, _visited
+                                components_schemas[name],
+                                components_schemas,
+                                _visited,
+                                _strong_refs,
                             )
                         )
         else:
             for v in obj.values():
-                names.extend(_find_referenced_schemas(v, components_schemas, _visited))
+                names.extend(
+                    _find_referenced_schemas(
+                        v, components_schemas, _visited, _strong_refs
+                    )
+                )
     elif isinstance(obj, list):
         for item in obj:
-            names.extend(_find_referenced_schemas(item, components_schemas, _visited))
+            names.extend(
+                _find_referenced_schemas(
+                    item, components_schemas, _visited, _strong_refs
+                )
+            )
     return names
 
 

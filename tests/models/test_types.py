@@ -288,3 +288,133 @@ def test_const_with_type_annotation() -> None:
         schema_to_python_type({"const": "pending", "type": "string"})
         == 'Literal["pending"]'
     )
+
+
+# ---------------------------------------------------------------------------
+# F-09 · $ref + sibling nullable keywords (OAS 3.1)
+# ---------------------------------------------------------------------------
+
+
+def test_ref_with_nullable_true_returns_optional() -> None:
+    raw = {"$ref": "#/components/schemas/Pet", "nullable": True}
+    resolved = {"type": "object", "properties": {"name": {"type": "string"}}}
+    assert schema_to_python_type(resolved, raw_schema=raw) == "Pet | None"
+
+
+def test_ref_without_nullable_returns_plain_name() -> None:
+    raw = {"$ref": "#/components/schemas/Pet"}
+    resolved = {"type": "object", "properties": {"name": {"type": "string"}}}
+    assert schema_to_python_type(resolved, raw_schema=raw) == "Pet"
+
+
+def test_ref_with_type_array_null_returns_optional() -> None:
+    # OAS 3.1 nullable via type array alongside $ref
+    raw = {"$ref": "#/components/schemas/Tag", "type": ["object", "null"]}
+    resolved = {"type": "object"}
+    assert schema_to_python_type(resolved, raw_schema=raw) == "Tag | None"
+
+
+# ---------------------------------------------------------------------------
+# F-10 · contentEncoding: base64 → bytes (OAS 3.1)
+# ---------------------------------------------------------------------------
+
+
+def test_content_encoding_base64_returns_bytes() -> None:
+    assert (
+        schema_to_python_type({"type": "string", "contentEncoding": "base64"})
+        == "bytes"
+    )
+
+
+def test_content_encoding_other_value_falls_through() -> None:
+    assert (
+        schema_to_python_type({"type": "string", "contentEncoding": "quoted-printable"})
+        == "str"
+    )
+
+
+def test_content_encoding_without_type_returns_bytes() -> None:
+    assert schema_to_python_type({"contentEncoding": "base64"}) == "bytes"
+
+
+# ---------------------------------------------------------------------------
+# F-05 · if/then/else best-effort (OAS 3.1)
+# ---------------------------------------------------------------------------
+
+
+def test_if_then_uses_then_branch() -> None:
+    import warnings
+
+    schema = {
+        "if": {"properties": {"kind": {"const": "dog"}}},
+        "then": {"type": "string"},
+        "else": {"type": "integer"},
+    }
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = schema_to_python_type(schema)
+    assert result == "str"
+    assert any("if" in str(warning.message).lower() for warning in w)
+
+
+def test_if_without_then_returns_any() -> None:
+    import warnings
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = schema_to_python_type({"if": {"type": "string"}})
+    assert result == "Any"
+    assert any("if" in str(warning.message).lower() for warning in w)
+
+
+def test_if_then_ref_resolves_correctly() -> None:
+    import warnings
+
+    schema = {
+        "if": {"properties": {"x": {"type": "integer"}}},
+        "then": {"type": "integer"},
+    }
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        assert schema_to_python_type(schema) == "int"
+
+
+# ---------------------------------------------------------------------------
+# F-04 · patternProperties → dict[str, T] (OAS 3.1)
+# ---------------------------------------------------------------------------
+
+
+def test_pattern_properties_single_type_returns_typed_dict() -> None:
+    schema = {
+        "type": "object",
+        "patternProperties": {"^S_": {"type": "string"}},
+    }
+    assert schema_to_python_type(schema) == "dict[str, str]"
+
+
+def test_pattern_properties_multiple_types_returns_any_dict() -> None:
+    schema = {
+        "type": "object",
+        "patternProperties": {
+            "^S_": {"type": "string"},
+            "^I_": {"type": "integer"},
+        },
+    }
+    assert schema_to_python_type(schema) == "dict[str, Any]"
+
+
+def test_pattern_properties_without_explicit_type() -> None:
+    # patternProperties implies object semantics even without type: object
+    schema = {"patternProperties": {"^.*$": {"type": "number"}}}
+    assert schema_to_python_type(schema) == "dict[str, float]"
+
+
+def test_pattern_properties_ignored_when_properties_present() -> None:
+    # If properties is set, it wins (model generator owns the class shape)
+    schema = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "patternProperties": {"^.*$": {"type": "integer"}},
+    }
+    result = schema_to_python_type(schema, context_name="MyModel")
+    assert result == "MyModel"

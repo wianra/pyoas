@@ -142,3 +142,21 @@ def test_round_trip(tmp_path: Path) -> None:
     assert reloaded.is_current("pets", "aabbccdd11223344")
     assert reloaded.is_current("orders", "11223344aabbccdd")
     assert not reloaded.is_current("unknown", "anything")
+
+
+def test_save_merges_with_concurrent_on_disk_entries(tmp_path: Path) -> None:
+    """Two independent cache instances save to the same file without losing entries."""
+    path = tmp_path / ".pyoas_cache.json"
+
+    cache1 = GenerationCache.load(path)
+    cache1.update("tag_a", "hash_a")
+
+    cache2 = GenerationCache.load(path)
+    cache2.update("tag_b", "hash_b")
+
+    cache1.save()
+    cache2.save()  # must merge, not overwrite
+
+    final = GenerationCache.load(path)
+    assert final.is_current("tag_a", "hash_a")
+    assert final.is_current("tag_b", "hash_b")

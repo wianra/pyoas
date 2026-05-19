@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import types as _types
 from pathlib import Path
 from unittest import mock
 
@@ -1063,3 +1064,78 @@ def test_fastapi_format_disabled_skips_ruff(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     mock_fmt.assert_not_called()
     assert (tmp_path / "routers" / "pets.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# watch (T-01)
+# ---------------------------------------------------------------------------
+
+
+def _make_watchfiles_module(events: list) -> _types.ModuleType:
+    """Return a fake watchfiles module whose watch() yields *events* then stops."""
+    mod = _types.ModuleType("watchfiles")
+    mod.watch = mock.MagicMock(return_value=iter(events))  # type: ignore[attr-defined]
+    return mod
+
+
+def test_watch_exits_one_when_watchfiles_missing(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    with mock.patch.dict("sys.modules", {"watchfiles": None}):
+        result = runner.invoke(app, ["watch", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "watchfiles" in result.output
+
+
+def test_watch_exits_one_when_pyoas_missing(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    fake_wf = _make_watchfiles_module([])
+    with mock.patch.dict("sys.modules", {"watchfiles": fake_wf, "pyoas.models": None}):
+        result = runner.invoke(app, ["watch", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "pyoas" in result.output
+
+
+def test_watch_displays_watching_message(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    fake_wf = _make_watchfiles_module([])
+    with (
+        mock.patch.dict("sys.modules", {"watchfiles": fake_wf}),
+        mock.patch("pyoas.models.ModelGenerator"),
+        mock.patch("pyoas.fastapi.RouterGenerator"),
+    ):
+        result = runner.invoke(app, ["watch", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "Watching" in result.output
+
+
+def test_watch_triggers_generation_on_change(tmp_path: Path) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    fake_wf = _make_watchfiles_module([frozenset()])
+    with (
+        mock.patch.dict("sys.modules", {"watchfiles": fake_wf}),
+        mock.patch("pyoas.models.ModelGenerator") as mock_mg,
+        mock.patch("pyoas.fastapi.RouterGenerator") as mock_rg,
+    ):
+        result = runner.invoke(app, ["watch", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "Change detected" in result.output
+    assert "Done." in result.output
+    mock_mg.return_value.generate.assert_called_once()
+    mock_rg.return_value.generate.assert_called_once()
+
+
+def test_watch_generation_error_is_reported_without_killing_loop(
+    tmp_path: Path,
+) -> None:
+    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
+    fake_wf = _make_watchfiles_module([frozenset(), frozenset()])
+    with (
+        mock.patch.dict("sys.modules", {"watchfiles": fake_wf}),
+        mock.patch("pyoas.models.ModelGenerator") as mock_mg,
+        mock.patch("pyoas.fastapi.RouterGenerator"),
+    ):
+        mock_mg.return_value.generate.side_effect = [RuntimeError("boom"), None]
+        result = runner.invoke(app, ["watch", "--config", str(cfg)])
+    assert result.exit_code == 0
+    assert "boom" in result.output
+    assert "Done." in result.output  # second iteration succeeded

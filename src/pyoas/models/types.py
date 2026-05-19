@@ -82,7 +82,11 @@ def schema_to_python_type(
             if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
                 name = ref.split("/")[-1]
                 if generic_name_map and name in generic_name_map:
-                    return generic_name_map[name]
+                    name = generic_name_map[name]
+                # OAS 3.1: sibling keywords alongside $ref override the referenced
+                # schema. Check for nullable indicators on the holder itself.
+                if _is_nullable(ref_holder):
+                    return f"{name} | None"
                 return name
             break
 
@@ -246,6 +250,52 @@ def _base_type(
     # OAS 3.1 const — single fixed value
     if "const" in schema:
         return f"Literal[{_format_literal(schema['const'])}]"
+
+    # OAS 3.1 contentEncoding: base64 → bytes
+    if schema.get("contentEncoding") == "base64":
+        return "bytes"
+
+    # OAS 3.1 if/then/else — best-effort: use the 'then' branch, warn about the rest
+    if "if" in schema:
+        then_schema = schema.get("then")
+        if isinstance(then_schema, dict):
+            warnings.warn(
+                "OpenAPI 'if'/'then'/'else' keywords are not fully supported; "
+                "using 'then' branch as best-effort type.",
+                UserWarning,
+                stacklevel=3,
+            )
+            return schema_to_python_type(
+                then_schema,
+                enums_as_literals=enums_as_literals,
+                unique_items_as_set=unique_items_as_set,
+            )
+        warnings.warn(
+            "OpenAPI 'if' keyword found without 'then'; falling back to 'Any'.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return "Any"
+
+    # OAS 3.1 patternProperties → typed dict (when no explicit properties block)
+    pattern_props = schema.get("patternProperties")
+    if (
+        isinstance(pattern_props, dict)
+        and pattern_props
+        and not schema.get("properties")
+    ):
+        value_types = {
+            schema_to_python_type(
+                v,
+                enums_as_literals=enums_as_literals,
+                unique_items_as_set=unique_items_as_set,
+            )
+            for v in pattern_props.values()
+            if isinstance(v, dict)
+        }
+        if len(value_types) == 1:
+            return f"dict[str, {next(iter(value_types))}]"
+        return "dict[str, Any]"
 
     raw_type = schema.get("type")
 
