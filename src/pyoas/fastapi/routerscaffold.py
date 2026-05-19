@@ -174,7 +174,9 @@ class RouterScaffolder:
             for name in sorted(shared):
                 expected = _expected_router_sig_str(ops_by_name[name], dep_import_path)
                 actual = _actual_router_sig_str(existing_src, name)
-                if actual is not None and actual != expected:
+                if actual is not None and _normalise_sig(actual) != _normalise_sig(
+                    expected
+                ):
                     drift_warnings.append(
                         f"DRIFT: {router_file}::{name} — signature changed\n"
                         f"  expected: {expected}\n"
@@ -352,7 +354,9 @@ def detect_router_drift(
             for fn in sorted(shared):
                 expected = _expected_router_sig_str(ops_by_name[fn], dep_import_path)
                 actual = _actual_router_sig_str(existing_src, fn)
-                if actual is not None and actual != expected:
+                if actual is not None and _normalise_sig(actual) != _normalise_sig(
+                    expected
+                ):
                     items.append(
                         RouterDriftItem(
                             kind="signature_changed",
@@ -394,6 +398,14 @@ def _actual_router_sig_str(src: str, fn_name: str) -> str | None:
         if isinstance(node, ast.AsyncFunctionDef) and node.name == fn_name:
             return _router_sig_from_ast(node)
     return None
+
+
+def _normalise_sig(s: str) -> str:
+    """Normalise quote style for signature comparison.
+
+    ast.unparse() always emits single quotes; _format_literal uses double quotes.
+    """
+    return s.replace('"', "'")
 
 
 def _router_sig_from_ast(func: ast.AsyncFunctionDef) -> str:

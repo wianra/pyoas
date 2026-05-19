@@ -208,7 +208,9 @@ class ServiceScaffolder:
             for name in sorted(shared):
                 expected = _expected_sig_str(ops_by_name[name], dep_import_path)
                 actual = _actual_sig_str(existing_src, name)
-                if actual is not None and actual != expected:
+                if actual is not None and _normalise_sig(actual) != _normalise_sig(
+                    expected
+                ):
                     drift_warnings.append(
                         f"DRIFT: {service_file}::{name} — signature changed\n"
                         f"  expected: {expected}\n"
@@ -382,7 +384,9 @@ def detect_service_drift(
             for fn in sorted(shared):
                 expected = _expected_sig_str(ops_by_name[fn], dep_import_path)
                 actual = _actual_sig_str(existing_src, fn)
-                if actual is not None and actual != expected:
+                if actual is not None and _normalise_sig(actual) != _normalise_sig(
+                    expected
+                ):
                     items.append(
                         DriftItem(
                             kind="signature_changed",
@@ -423,6 +427,16 @@ def _actual_sig_str(src: str, fn_name: str) -> str | None:
         if isinstance(node, ast.AsyncFunctionDef) and node.name == fn_name:
             return _service_sig_from_ast(node)
     return None
+
+
+def _normalise_sig(s: str) -> str:
+    """Normalise quote style in a signature string for comparison.
+
+    ast.unparse() always emits single quotes for string literals, but
+    _format_literal uses double quotes. Replace all double-quoted substrings
+    with single-quoted equivalents so both sides compare equal.
+    """
+    return s.replace('"', "'")
 
 
 def _service_sig_from_ast(func: ast.AsyncFunctionDef) -> str:
