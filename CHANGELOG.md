@@ -1,3 +1,11 @@
+## v0.5.1 (2026-05-19)
+
+### Fix
+
+- **drift**: replace regex sig-extraction with AST; add plugin rollback
+- guard empty tag_dirname and crash on empty YAML config
+- **analysis**: broaden generic title detection to handle nested type params
+
 ## v0.5.0 (2026-05-18)
 
 ### Feat
