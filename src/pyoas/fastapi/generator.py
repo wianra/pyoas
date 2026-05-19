@@ -154,7 +154,7 @@ class RouterGenerator:
             # Attach the raw (unresolved) operation so params can recover $ref names.
             merged = [
                 {**op, "raw_operation": raw_op["operation"]}
-                for op, raw_op in zip(operations, raw_operations)
+                for op, raw_op in zip(operations, raw_operations, strict=True)
             ]
             _tag_hash = ""
             if use_cache:

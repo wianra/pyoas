@@ -18,6 +18,7 @@ from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     generate_function_name,
+    tag_to_dirname,
     to_pascal_case,
     to_snake_case,
 )
@@ -104,7 +105,7 @@ class ServiceTestScaffolder:
             raw_operations = grouped_raw.get(tag, [])
             merged = [
                 {**op, "raw_operation": raw_op["operation"]}
-                for op, raw_op in zip(operations, raw_operations)
+                for op, raw_op in zip(operations, raw_operations, strict=True)
             ]
             tag_result = self._scaffold_tag(
                 tag, merged, renderer, output_root, global_security
@@ -123,7 +124,7 @@ class ServiceTestScaffolder:
         global_security: list[Any],
     ) -> ScaffoldResult:
         tag_result = ScaffoldResult()
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        tag_dirname = tag_to_dirname(tag)
         test_file = output_root / f"test_{tag_dirname}_service.py"
         context = _build_service_test_context(
             tag, operations, self._config, global_security
@@ -168,7 +169,7 @@ def _build_service_test_context(
     config: Config,
     global_security: list[Any],
 ) -> dict[str, Any]:
-    tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+    tag_dirname = tag_to_dirname(tag)
     service_class_name = to_pascal_case(tag_dirname) + "Service"
 
     test_ops: list[ServiceTestOperation] = []

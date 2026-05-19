@@ -418,6 +418,68 @@ def test_parameter_shadowing_no_false_positive() -> None:
     assert not any(i.check == "parameter_shadowing" for i in issues)
 
 
+def test_path_item_level_param_shadow_detected() -> None:
+    """parameter_shadowing fires when the path param is on the path item, not the operation."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items/{id}": {
+                # path-item-level path param
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": True,
+                        "schema": {"type": "integer"},
+                    }
+                ],
+                "get": {
+                    "operationId": "getItem",
+                    # operation-level query param shadows path-item path param
+                    "parameters": [
+                        {"in": "query", "name": "id", "schema": {"type": "string"}}
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                },
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    shadowing = [i for i in issues if i.check == "parameter_shadowing"]
+    assert len(shadowing) == 1
+    assert "id" in shadowing[0].message
+    assert shadowing[0].location == "GET /items/{id}"
+
+
+def test_path_item_level_param_overridden_by_operation() -> None:
+    """No shadowing when operation param legally overrides a same-name path-item param."""
+    spec_raw = {
+        "openapi": "3.0.0",
+        "info": {"title": "T", "version": "1"},
+        "paths": {
+            "/items": {
+                # path-item query param
+                "parameters": [
+                    {"in": "query", "name": "format", "schema": {"type": "string"}}
+                ],
+                "get": {
+                    "operationId": "listItems",
+                    # operation overrides same (in, name) — legal, not a dup
+                    "parameters": [
+                        {"in": "query", "name": "format", "schema": {"type": "integer"}}
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                },
+            }
+        },
+    }
+    cfg = _minimal_cfg("fake.yaml")
+    issues = run_doctor_checks(spec_raw, cfg)
+    assert not any(i.check == "parameter_shadowing" for i in issues)
+
+
 # ---------------------------------------------------------------------------
 # T3-G: missing_success_response check
 # ---------------------------------------------------------------------------

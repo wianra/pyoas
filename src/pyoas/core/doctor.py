@@ -132,7 +132,20 @@ def _check_parameter_shadowing(spec_raw: dict[str, Any]) -> list[DoctorIssue]:
             if not isinstance(operation, dict):
                 continue
 
-            params = operation.get("parameters") or []
+            # Merge path-item-level params (base) with operation-level params (override).
+            # Per OpenAPI spec, operation params override path-item params by (in, name).
+            path_item_params = [
+                p for p in (path_item.get("parameters") or []) if isinstance(p, dict)
+            ]
+            op_params = [
+                p for p in (operation.get("parameters") or []) if isinstance(p, dict)
+            ]
+            op_keys = {(p.get("in"), p.get("name")) for p in op_params}
+            params = [
+                p
+                for p in path_item_params
+                if (p.get("in"), p.get("name")) not in op_keys
+            ] + op_params
             path_param_names = {
                 p["name"]
                 for p in params

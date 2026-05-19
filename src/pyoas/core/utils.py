@@ -112,7 +112,7 @@ def generate_function_name(method: str, path: str) -> str:
 
 def tag_to_dirname(tag: str) -> str:
     """Convert a tag name to a safe filesystem directory/module name."""
-    return re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+    return re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_") or "unnamed"
 
 
 def format_output(output_root: Path) -> None:

@@ -278,4 +278,6 @@ def load_config(path: str) -> Config:
             raise ValueError(
                 f"Unsupported config format: {p.suffix!r}. Only YAML (.yaml/.yml) is supported."
             )
+    if not isinstance(data, dict):
+        raise ValueError("Config file is empty or not valid YAML")
     return _parse_config(data, base_dir=base_dir)

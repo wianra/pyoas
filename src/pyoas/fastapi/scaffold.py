@@ -26,6 +26,7 @@ from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     derive_import_path,
     generate_function_name,
+    tag_to_dirname,
     to_pascal_case,
     to_snake_case,
 )
@@ -90,7 +91,7 @@ class ServiceScaffolder:
             raw_operations = grouped_raw.get(tag, [])
             merged = [
                 {**op, "raw_operation": raw_op["operation"]}
-                for op, raw_op in zip(operations, raw_operations)
+                for op, raw_op in zip(operations, raw_operations, strict=True)
             ]
             tag_result = self._scaffold_tag(
                 tag,
@@ -132,7 +133,7 @@ class ServiceScaffolder:
         import re
 
         tag_result = ScaffoldResult()
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        tag_dirname = tag_to_dirname(tag)
         service_file = output_root / f"{tag_dirname}.py"
 
         context = _build_service_context(
@@ -290,7 +291,7 @@ def detect_service_drift(
         raw_ops = grouped_raw.get(tag, [])
         merged = [
             {**op, "raw_operation": raw_op["operation"]}
-            for op, raw_op in zip(operations, raw_ops)
+            for op, raw_op in zip(operations, raw_ops, strict=True)
         ]
         context = _build_service_context(
             tag,
@@ -303,7 +304,7 @@ def detect_service_drift(
             inline_schema_tag_map=inline_schema_tag_map,
             global_security=global_security,
         )
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        tag_dirname = tag_to_dirname(tag)
         svc_file = svc_root / f"{tag_dirname}.py"
         current_ops = {op["function_name"] for op in context["operations"]}
 
@@ -530,9 +531,7 @@ def _build_service_context(
         {"UploadFile"} if "UploadFile" in combined else set()
     )
 
-    import re
-
-    tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+    tag_dirname = tag_to_dirname(tag)
     service_class_name = to_pascal_case(tag_dirname) + "Service"
     service_dep_fn = f"get_{tag_dirname}_service"
 

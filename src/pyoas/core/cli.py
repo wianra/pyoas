@@ -1115,6 +1115,7 @@ def _scaffold_test_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noq
     from pyoas.core.parser import SpecParser
     from pyoas.core.resolver import resolve_refs
     from pyoas.core.tags import extract_tags
+    from pyoas.core.utils import tag_to_dirname
     from pyoas.fastapi.testscaffold import _build_test_context
 
     spec_raw = SpecParser(cfg.spec).load()
@@ -1130,10 +1131,10 @@ def _scaffold_test_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noq
         raw_ops = grouped_raw.get(tag, [])
         merged = [
             {**op, "raw_operation": raw_op["operation"]}
-            for op, raw_op in zip(operations, raw_ops)
+            for op, raw_op in zip(operations, raw_ops, strict=True)
         ]
         context = _build_test_context(tag, merged, cfg)
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        tag_dirname = tag_to_dirname(tag)
         test_file = test_root / f"test_{tag_dirname}.py"
         expected = {op["class_name"] for op in context["operations"]}
         if not test_file.exists():

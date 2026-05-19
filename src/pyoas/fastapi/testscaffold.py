@@ -20,6 +20,7 @@ from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     derive_import_path,
     generate_function_name,
+    tag_to_dirname,
     to_pascal_case,
     to_snake_case,
 )
@@ -372,7 +373,7 @@ class TestScaffolder:
             raw_operations = grouped_raw.get(tag, [])
             merged = [
                 {**op, "raw_operation": raw_op["operation"]}
-                for op, raw_op in zip(operations, raw_operations)
+                for op, raw_op in zip(operations, raw_operations, strict=True)
             ]
             context, tag_result = self._scaffold_tag(
                 tag, merged, renderer, output_root, generic_name_map, global_security
@@ -414,7 +415,7 @@ class TestScaffolder:
                         module = "shared"
                     elif len(tags_for_name) == 1:
                         t = next(iter(tags_for_name))
-                        module = re.sub(r"[^a-z0-9_]", "_", t.lower()).strip("_")
+                        module = tag_to_dirname(t)
                     else:
                         # Inline or generic base — fall back to the entry's tag module.
                         module = entry["tag_dirname"]
@@ -452,7 +453,7 @@ class TestScaffolder:
         global_security: list[Any] | None = None,
     ) -> tuple[dict[str, Any], ScaffoldResult]:
         tag_result = ScaffoldResult()
-        tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+        tag_dirname = tag_to_dirname(tag)
         test_file = output_root / f"test_{tag_dirname}.py"
 
         context = _build_test_context(
@@ -746,12 +747,18 @@ def _build_test_context(
                             "{" + p["alias"] + "}", str(violation)
                         )
                     else:
-                        other_base = (
-                            _annotated_base_type(other_p["python_type"])
-                            .split("[")[0]
-                            .strip()
-                        )
-                        example = _PATH_PARAM_EXAMPLES.get(other_base, "1")
+                        other_ev = other_p.get("enum_values")
+                        if other_ev:
+                            example = str(other_ev[0])
+                        elif other_p.get("spec_example") is not None:
+                            example = str(other_p["spec_example"])
+                        else:
+                            other_base = (
+                                _annotated_base_type(other_p["python_type"])
+                                .split("[")[0]
+                                .strip()
+                            )
+                            example = _PATH_PARAM_EXAMPLES.get(other_base, "1")
                         invalid_path = invalid_path.replace(
                             "{" + other_p["alias"] + "}", example
                         )
@@ -791,12 +798,18 @@ def _build_test_context(
                         "{" + p["alias"] + "}", invalid_segment
                     )
                 else:
-                    other_base = (
-                        _annotated_base_type(other_p["python_type"])
-                        .split("[")[0]
-                        .strip()
-                    )
-                    example = _PATH_PARAM_EXAMPLES.get(other_base, "1")
+                    other_ev = other_p.get("enum_values")
+                    if other_ev:
+                        example = str(other_ev[0])
+                    elif other_p.get("spec_example") is not None:
+                        example = str(other_p["spec_example"])
+                    else:
+                        other_base = (
+                            _annotated_base_type(other_p["python_type"])
+                            .split("[")[0]
+                            .strip()
+                        )
+                        example = _PATH_PARAM_EXAMPLES.get(other_base, "1")
                     invalid_path = invalid_path.replace(
                         "{" + other_p["alias"] + "}", example
                     )
@@ -935,7 +948,7 @@ def _build_test_context(
         for op in test_ops
     )
 
-    tag_dirname = re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_")
+    tag_dirname = tag_to_dirname(tag)
     router_import_path = config.output.routers_import or derive_import_path(
         config.output.routers, config.output.source_root
     )
@@ -996,6 +1009,8 @@ def _fill_path_params(path: str, params: list[dict[str, Any]]) -> str:
             ev = p.get("enum_values")
             if ev:
                 example = str(ev[0])
+            elif p.get("spec_example") is not None:
+                example = str(p["spec_example"])
             else:
                 # Strip generics / Annotated wrapper for lookup.
                 base = _annotated_base_type(p["python_type"]).split("[")[0].strip()

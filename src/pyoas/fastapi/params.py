@@ -157,11 +157,13 @@ def build_function_params(
     """
     params: list[dict[str, Any]] = []
 
-    # Build a name→raw-schema index from the unresolved parameters list.
+    # Build a name→raw-schema index and a name→raw-param-object index.
     raw_params_by_name: dict[str, dict[str, Any]] = {}
+    raw_param_obj_by_name: dict[str, dict[str, Any]] = {}
     for rp in (raw_operation or {}).get("parameters") or []:
         if isinstance(rp, dict) and "name" in rp:
             raw_params_by_name[rp["name"]] = rp.get("schema") or {}
+            raw_param_obj_by_name[rp["name"]] = rp
 
     for param in operation.get("parameters") or []:
         schema = param.get("schema") or {}
@@ -210,6 +212,9 @@ def build_function_params(
                 "constraints": extract_numeric_constraints(schema),
                 "string_constraints": extract_string_constraints(schema),
                 "enum_values": extract_enum_values(schema),
+                "spec_example": raw_param_obj_by_name.get(
+                    param.get("name", ""), {}
+                ).get("example"),
             }
         )
 

@@ -140,6 +140,46 @@ def test_path_params_filled(petstore_30: Path) -> None:
         assert 'client.get("/pets/{petId}")' not in content
 
 
+def test_path_param_spec_example_used_in_filled_path(tmp_path: Path) -> None:
+    """When a path param has an `example` field in the spec, use it over the type default."""
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        """
+openapi: "3.0.0"
+info:
+  title: Example API
+  version: "1.0"
+paths:
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          example: 42
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+        encoding="utf-8",
+    )
+    tests_out = str(tmp_path / "tests")
+    cfg = _make_config(str(spec), tests_out)
+    TestScaffolder(cfg).scaffold()
+
+    content = (tmp_path / "tests" / "test_default.py").read_text(encoding="utf-8")
+    assert 'client.get("/items/42")' in content
+    assert 'client.get("/items/1")' not in content
+    assert 'client.get("/items/{itemId}")' not in content
+
+
 def test_append_only_skips_existing_classes(petstore_30: Path) -> None:
     """Second run only adds test classes for new operations, does not overwrite existing ones."""
     with tempfile.TemporaryDirectory() as tmp:

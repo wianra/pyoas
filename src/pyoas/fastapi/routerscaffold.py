@@ -85,7 +85,7 @@ class RouterScaffolder:
             raw_operations = grouped_raw.get(tag, [])
             merged = [
                 {**op, "raw_operation": raw_op["operation"]}
-                for op, raw_op in zip(operations, raw_operations)
+                for op, raw_op in zip(operations, raw_operations, strict=True)
             ]
             tag_result = self._scaffold_tag(
                 tag,
@@ -290,7 +290,7 @@ def detect_router_drift(
         raw_ops = grouped_raw.get(tag, [])
         merged = [
             {**op, "raw_operation": raw_op["operation"]}
-            for op, raw_op in zip(operations, raw_ops)
+            for op, raw_op in zip(operations, raw_ops, strict=True)
         ]
         context = _build_router_context(
             tag,
