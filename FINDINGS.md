@@ -24,7 +24,7 @@ Compounding this: the doctor check in `doctor.py:193` uses `str(k).startswith("2
 ### B-02 · `has_circular` context variable computed but never used in template
 **Severity**: Low
 **Files**: `models/context.py:198`, `models/templates/model.py.jinja2`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 `_build_models_context` calls `has_circular_refs(...)` and passes `has_circular` in the Jinja2 context, but `model.py.jinja2` never references it. Dead computation on every generation pass.
 
@@ -63,7 +63,7 @@ if dep_fn in existing_src:
 ### B-05 · Drift detection is order-sensitive for keyword-only arguments
 **Severity**: Low
 **File**: `fastapi/scaffold.py:372-382`, `fastapi/scaffold.py:397-408`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 `_expected_sig_str` iterates `op["parameters"]` in spec order; `_service_sig_from_ast` iterates `func.args.kwonlyargs` in file order. Reordering keyword-only parameters in a service method (a harmless refactor) incorrectly triggers drift detection.
 
@@ -74,7 +74,7 @@ if dep_fn in existing_src:
 ### B-06 · Auth imports appended to bottom of `conftest.py` instead of top
 **Severity**: Medium
 **File**: `fastapi/testscaffold.py:569-589`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 When adding the `auth_context` fixture to an existing `conftest.py`, the code does:
 
@@ -115,7 +115,7 @@ updated = existing_src.rstrip() + "\n" + "\n".join(new_lines) + "\n"
 ### B-09 · `_extract_model_class_names` regex fails for nested-bracket Literals
 **Severity**: Low
 **File**: `fastapi/generator.py:313`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 ```python
 combined = re.sub(r"Literal\[[^\]]*\]", "", combined)
@@ -169,7 +169,7 @@ The `Plugin` protocol documents `on_generate_complete(stats)` as "called once af
 ### B-13 · Consecutive underscores not collapsed in generated function names
 **Severity**: Low
 **File**: `fastapi/generator.py:544-545`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 ```python
 function_name = to_snake_case(re.sub(r"[^a-zA-Z0-9_]", "_", operation_id))
@@ -184,7 +184,7 @@ OperationIds like `"list-pets--v2"` produce `"list_pets__v2"` (double underscore
 ### B-14 · Stale docstring in router generator
 **Severity**: Low
 **File**: `fastapi/generator.py:4`
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 ```
 """RouterGenerator — orchestrates FastAPI router generation from an OpenAPI spec.
@@ -348,7 +348,7 @@ Concurrent `pyoas models` runs (e.g., in parallel CI jobs sharing a workspace) c
 ---
 
 ### A-09 · No validation that `model_config.extra` values are legal Pydantic strings
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 
 `Config` accepts any string for `extra` and `request_extra`. Pydantic v2 only accepts `"ignore"`, `"allow"`, `"forbid"`. An invalid value (e.g., `"FORBID"`) causes a Pydantic `ValueError` at model class creation time, with an error pointing at generated code rather than the config file.
 
@@ -425,32 +425,32 @@ The selective-clean code path (`tag_filter + clean=True`) removes individual tag
 ---
 
 ### T-12 · Router generated file snapshots — not using syrupy
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(already present prior to WP-6)*
 `test_router_generator.py` makes structural assertions but has no syrupy snapshot tests. Model generation uses snapshots; routers should too for regression protection.
 
 ---
 
 ### T-13 · Config validation errors — limited coverage
-**Status**: [~] *(WP-6)*
+**Status**: [x] *(WP-6)*
 No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys, malformed `plugins` entries.
 
 ---
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | In Progress (WP-6) |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) |
 |---|---|---|---|---|
 | Bugs | 14 | 3 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 |
 | Missing OAS features | 10 | 8 | F-01, F-06 | — |
 | Architecture issues | 9 | 7 | A-04 | A-09 |
-| Test gaps | 13 | 9 | T-08, T-09 | T-12, T-13 |
-| **Total** | **46** | **27** | **11** | **9** |
+| Test gaps | 13 | 9 | T-08, T-09, T-12 | T-13 |
+| **Total** | **46** | **27** | **12** | **8** |
 
 ### Priority
 
 | Priority | Items |
 |---|---|
 | **High** | *(all resolved)* |
-| **Medium** | B-03, B-06 *(WP-6)*, A-01, A-02, F-02 |
-| **Low (WP-6)** | B-02, B-05, B-09, B-13, B-14, A-09, T-12, T-13 |
+| **Medium** | B-03, B-06 *(fixed)*, A-01, A-02, F-02 |
+| **Low (done)** | B-02, B-05, B-09, B-13, B-14, A-09, T-12, T-13 |
 | **Low (deferred)** | B-04, F-03–F-05, F-07–F-10, A-03, A-05–A-08, T-01–T-07, T-10, T-11 |

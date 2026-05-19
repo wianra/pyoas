@@ -377,6 +377,7 @@ def _expected_sig_str(op: dict[str, Any], dep_import_path: str | None = None) ->
     ]
     if dep_import_path and op.get("has_security"):
         parts.append("auth: AuthContext")
+    parts.sort()
     if parts:
         return f"(self, *, {', '.join(parts)}) -> {op['response_type']}"
     return f"(self) -> {op['response_type']}"
@@ -402,6 +403,7 @@ def _service_sig_from_ast(func: ast.AsyncFunctionDef) -> str:
         if default is not None:
             part += f" = {ast.unparse(default)}"
         parts.append(part)
+    parts.sort()
     ret = ast.unparse(func.returns).strip() if func.returns else "None"
     if parts:
         return f"(self, *, {', '.join(parts)}) -> {ret}"

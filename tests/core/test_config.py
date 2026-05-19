@@ -3,7 +3,7 @@ from textwrap import dedent
 
 import pytest
 
-from pyoas.core.config import Config, load_config
+from pyoas.core.config import Config, ModelConfig, load_config
 
 
 def test_load_minimal_config(tmp_path: Path) -> None:
@@ -223,3 +223,37 @@ def test_model_config_include_unreferenced_loaded_from_yaml(tmp_path: Path) -> N
     )
     cfg = load_config(str(cfg_file))
     assert cfg.model_config.include_unreferenced is True
+
+
+# ---------------------------------------------------------------------------
+# Config validation error tests (T-13 / A-09)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", ["ignore", "allow", "forbid"])
+def test_valid_extra_values_accepted(value: str) -> None:
+    cfg = Config(spec="openapi.yaml", model_config=ModelConfig(extra=value))
+    assert cfg.model_config.extra == value
+
+
+@pytest.mark.parametrize("value", ["FORBID", "Ignore", "strict", ""])
+def test_invalid_extra_value_raises(tmp_path: Path, value: str) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(f"spec: openapi.yaml\nmodel_config:\n  extra: {value!r}\n")
+    with pytest.raises(ValueError, match="model_config.extra"):
+        load_config(str(cfg_file))
+
+
+@pytest.mark.parametrize("value", ["FORBID", "Ignore", "strict", ""])
+def test_invalid_request_extra_value_raises(tmp_path: Path, value: str) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        f"spec: openapi.yaml\nmodel_config:\n  request_extra: {value!r}\n"
+    )
+    with pytest.raises(ValueError, match="model_config.request_extra"):
+        load_config(str(cfg_file))
+
+
+def test_invalid_extra_value_raises_on_direct_instantiation() -> None:
+    with pytest.raises(ValueError, match="model_config.extra"):
+        ModelConfig(extra="invalid")

@@ -586,7 +586,9 @@ class TestScaffolder:
                 '    """',
                 "    return AuthContext()",
             ]
-            new_lines = missing_imports + auth_fixture_lines + new_lines
+            if missing_imports:
+                existing_src = "\n".join(missing_imports) + "\n" + existing_src
+            new_lines = auth_fixture_lines + new_lines
 
         if not new_lines:
             return conftest_result

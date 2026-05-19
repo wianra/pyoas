@@ -8,6 +8,8 @@ import yaml
 
 from pyoas.core.utils import derive_import_path
 
+_VALID_PYDANTIC_EXTRA: frozenset[str] = frozenset({"ignore", "allow", "forbid"})
+
 
 @dataclass
 class OutputConfig:
@@ -31,6 +33,15 @@ class ModelConfig:
     frozen: bool = False
     populate_by_name: bool = True
     include_unreferenced: bool = False  # generate schemas with no operation references
+
+    def __post_init__(self) -> None:
+        for attr in ("extra", "request_extra"):
+            value = getattr(self, attr)
+            if value not in _VALID_PYDANTIC_EXTRA:
+                raise ValueError(
+                    f"model_config.{attr} must be one of {sorted(_VALID_PYDANTIC_EXTRA)!r},"
+                    f" got {value!r}"
+                )
 
 
 @dataclass

@@ -1,8 +1,4 @@
-"""
-RouterGenerator — orchestrates FastAPI router generation from an OpenAPI spec.
-
-Milestone 3 will fill in the complete implementation.
-"""
+"""RouterGenerator — orchestrates FastAPI router generation from an OpenAPI spec."""
 
 from __future__ import annotations
 
@@ -303,14 +299,36 @@ _STDLIB_NAMES: frozenset[str] = frozenset(
 )
 
 
+def _strip_literals(s: str) -> str:
+    """Remove all ``Literal[...]`` substrings, handling nested brackets."""
+    result: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i : i + 8] == "Literal[":
+            depth = 0
+            j = i + 7
+            while j < len(s):
+                if s[j] == "[":
+                    depth += 1
+                elif s[j] == "]":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            i = j + 1
+        else:
+            result.append(s[i])
+            i += 1
+    return "".join(result)
+
+
 def _extract_model_class_names(type_strings: list[str]) -> set[str]:
     """Return PascalCase identifiers from type annotation strings.
 
     Strips ``Literal[...]`` substrings first so that enum values like
     ``Literal["available", "pending"]`` don't contribute tokens.
     """
-    combined = " ".join(type_strings)
-    combined = re.sub(r"Literal\[[^\]]*\]", "", combined)
+    combined = _strip_literals(" ".join(type_strings))
     return {
         t
         for t in re.findall(r"\b([A-Z][A-Za-z0-9_]*)\b", combined)
@@ -541,8 +559,9 @@ def _render_operation(
 
     operation_id = operation.get("operationId")
     if operation_id:
-        # Sanitize non-identifier chars (dashes, dots, spaces) before snake_case conversion.
-        function_name = to_snake_case(re.sub(r"[^a-zA-Z0-9_]", "_", operation_id))
+        sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", operation_id)
+        sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+        function_name = to_snake_case(sanitized)
     else:
         function_name = generate_function_name(method, path)
 
