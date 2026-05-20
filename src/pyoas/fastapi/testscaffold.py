@@ -354,8 +354,16 @@ class TestScaffolder:
         else:
             spec_raw = parsed_spec.raw
             spec = parsed_spec.resolved
-        grouped = extract_tags(spec, default_tag=cfg.default_tag)
-        grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        grouped = extract_tags(
+            spec,
+            default_tag=cfg.default_tag,
+            skip_extensions=cfg.skip_extensions,
+        )
+        grouped_raw = extract_tags(
+            spec_raw,
+            default_tag=cfg.default_tag,
+            skip_extensions=cfg.skip_extensions,
+        )
 
         if tag_filter:
             grouped = {k: v for k, v in grouped.items() if k in tag_filter}

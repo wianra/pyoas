@@ -1,5 +1,7 @@
 import warnings
 
+import pytest
+
 from pyoas.core.parser import SpecParser
 from pyoas.core.resolver import resolve_refs
 from pyoas.core.tags import extract_tags, get_declared_tags
@@ -263,3 +265,279 @@ def test_non_dict_webhook_item_is_skipped() -> None:
     spec: dict = {"webhooks": {"badEntry": "not a dict"}}
     grouped = extract_tags(spec, include_webhooks=True)
     assert grouped == {}
+
+
+# ---------------------------------------------------------------------------
+# skip_extensions filtering
+# ---------------------------------------------------------------------------
+
+_DRAFT_SPEC: dict = {
+    "paths": {
+        "/published": {
+            "get": {"tags": ["items"], "responses": {}, "operationId": "getPublished"},
+        },
+        "/draft": {
+            "get": {
+                "tags": ["items"],
+                "responses": {},
+                "operationId": "getDraft",
+                "x-draft": True,
+            },
+        },
+    }
+}
+
+
+def test_skip_extension_truthy_operation_excluded() -> None:
+    grouped = extract_tags(_DRAFT_SPEC, skip_extensions=["x-draft"])
+    ops = grouped["items"]
+    assert len(ops) == 1
+    assert ops[0]["operation"]["operationId"] == "getPublished"
+
+
+def test_skip_extension_falsy_operation_kept() -> None:
+    spec: dict = {
+        "paths": {
+            "/item": {
+                "get": {"tags": ["items"], "responses": {}, "x-draft": False},
+            }
+        }
+    }
+    grouped = extract_tags(spec, skip_extensions=["x-draft"])
+    assert len(grouped["items"]) == 1
+
+
+def test_skip_extension_absent_operation_kept() -> None:
+    spec: dict = {
+        "paths": {
+            "/item": {
+                "get": {"tags": ["items"], "responses": {}},
+            }
+        }
+    }
+    grouped = extract_tags(spec, skip_extensions=["x-draft"])
+    assert len(grouped["items"]) == 1
+
+
+def test_skip_multiple_extensions_any_truthy_excluded() -> None:
+    spec: dict = {
+        "paths": {
+            "/a": {
+                "get": {
+                    "tags": ["t"],
+                    "responses": {},
+                    "operationId": "a",
+                    "x-draft": True,
+                }
+            },
+            "/b": {
+                "get": {
+                    "tags": ["t"],
+                    "responses": {},
+                    "operationId": "b",
+                    "x-internal": True,
+                }
+            },
+            "/c": {"get": {"tags": ["t"], "responses": {}, "operationId": "c"}},
+        }
+    }
+    grouped = extract_tags(spec, skip_extensions=["x-draft", "x-internal"])
+    assert len(grouped["t"]) == 1
+    assert grouped["t"][0]["operation"]["operationId"] == "c"
+
+
+def test_empty_skip_extensions_no_filtering() -> None:
+    grouped = extract_tags(_DRAFT_SPEC, skip_extensions=[])
+    assert len(grouped["items"]) == 2
+
+
+_LIFECYCLE_SPEC: dict = {
+    "paths": {
+        "/a": {
+            "get": {
+                "tags": ["t"],
+                "operationId": "a",
+                "responses": {},
+                "x-lifecycle": "draft",
+            }
+        },
+        "/b": {
+            "get": {
+                "tags": ["t"],
+                "operationId": "b",
+                "responses": {},
+                "x-lifecycle": "alpha",
+            }
+        },
+        "/c": {
+            "get": {
+                "tags": ["t"],
+                "operationId": "c",
+                "responses": {},
+                "x-lifecycle": "stable",
+            }
+        },
+    }
+}
+
+
+def test_skip_extension_equals_single_value() -> None:
+    grouped = extract_tags(
+        _LIFECYCLE_SPEC, skip_extensions={"x-lifecycle": frozenset({"draft"})}
+    )
+    op_ids = sorted(op["operation"]["operationId"] for op in grouped["t"])
+    assert op_ids == ["b", "c"]
+
+
+def test_skip_extension_value_in_set() -> None:
+    grouped = extract_tags(
+        _LIFECYCLE_SPEC,
+        skip_extensions={"x-lifecycle": frozenset({"draft", "alpha"})},
+    )
+    op_ids = [op["operation"]["operationId"] for op in grouped["t"]]
+    assert op_ids == ["c"]
+
+
+def test_skip_extension_value_match_does_not_skip_other_values() -> None:
+    grouped = extract_tags(
+        _LIFECYCLE_SPEC,
+        skip_extensions={"x-lifecycle": frozenset({"retired"})},
+    )
+    assert len(grouped["t"]) == 3
+
+
+def test_skip_extension_mapping_with_None_is_presence_check() -> None:
+    grouped = extract_tags(_DRAFT_SPEC, skip_extensions={"x-draft": None})
+    ops = grouped["items"]
+    assert len(ops) == 1
+    assert ops[0]["operation"]["operationId"] == "getPublished"
+
+
+def test_skip_extension_or_semantics_across_keys() -> None:
+    spec: dict = {
+        "paths": {
+            "/a": {
+                "get": {
+                    "tags": ["t"],
+                    "operationId": "a",
+                    "responses": {},
+                    "x-draft": True,
+                }
+            },
+            "/b": {
+                "get": {
+                    "tags": ["t"],
+                    "operationId": "b",
+                    "responses": {},
+                    "x-lifecycle": "draft",
+                }
+            },
+            "/c": {
+                "get": {
+                    "tags": ["t"],
+                    "operationId": "c",
+                    "responses": {},
+                    "x-lifecycle": "stable",
+                }
+            },
+        }
+    }
+    grouped = extract_tags(
+        spec,
+        skip_extensions={
+            "x-draft": None,
+            "x-lifecycle": frozenset({"draft"}),
+        },
+    )
+    op_ids = [op["operation"]["operationId"] for op in grouped["t"]]
+    assert op_ids == ["c"]
+
+
+def test_skip_extension_unhashable_value_does_not_match_equality() -> None:
+    """If an op's extension value is a list, it cannot equal any scalar."""
+    spec: dict = {
+        "paths": {
+            "/a": {
+                "get": {
+                    "tags": ["t"],
+                    "operationId": "a",
+                    "responses": {},
+                    "x-status": ["draft"],
+                }
+            },
+        }
+    }
+    grouped = extract_tags(spec, skip_extensions={"x-status": frozenset({"draft"})})
+    assert len(grouped["t"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# normalize_skip_extensions
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_skip_extensions_none_returns_empty() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    assert normalize_skip_extensions(None) == {}
+
+
+def test_normalize_skip_extensions_list_form() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    assert normalize_skip_extensions(["x-a", "x-b"]) == {"x-a": None, "x-b": None}
+
+
+def test_normalize_skip_extensions_dict_truthy() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    assert normalize_skip_extensions({"x-a": True}) == {"x-a": None}
+
+
+def test_normalize_skip_extensions_dict_scalar() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    assert normalize_skip_extensions({"x-a": "draft"}) == {"x-a": frozenset({"draft"})}
+
+
+def test_normalize_skip_extensions_dict_list() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    assert normalize_skip_extensions({"x-a": ["draft", "alpha"]}) == {
+        "x-a": frozenset({"draft", "alpha"})
+    }
+
+
+def test_normalize_skip_extensions_dict_false_raises() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        normalize_skip_extensions({"x-a": False})
+
+
+def test_normalize_skip_extensions_dict_nested_raises() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    with pytest.raises(ValueError, match="must be `true`"):
+        normalize_skip_extensions({"x-a": {"nested": "thing"}})
+
+
+def test_normalize_skip_extensions_non_string_key_raises() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    with pytest.raises(ValueError, match="keys must be strings"):
+        normalize_skip_extensions({123: True})
+
+
+def test_normalize_skip_extensions_non_string_list_entry_raises() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    with pytest.raises(ValueError, match="list entries must be strings"):
+        normalize_skip_extensions([123])
+
+
+def test_normalize_skip_extensions_top_level_string_raises() -> None:
+    from pyoas.core.tags import normalize_skip_extensions
+
+    with pytest.raises(ValueError, match="must be a list or mapping"):
+        normalize_skip_extensions("x-draft")

@@ -313,3 +313,120 @@ def test_templates_routers_missing_dir_raises(tmp_path: Path) -> None:
     cfg_file.write_text("spec: openapi.yaml\ntemplates:\n  routers: nonexistent/dir\n")
     with pytest.raises(ValueError, match="templates.routers"):
         load_config(str(cfg_file))
+
+
+# ---------------------------------------------------------------------------
+# skip_extensions
+# ---------------------------------------------------------------------------
+
+
+def test_skip_extensions_defaults_to_empty(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\n")
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {}
+
+
+def test_skip_extensions_list_form_is_presence_check(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          - x-draft
+          - x-internal
+        """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {"x-draft": None, "x-internal": None}
+
+
+def test_skip_extensions_mapping_form_truthy(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-draft: true
+        """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {"x-draft": None}
+
+
+def test_skip_extensions_mapping_form_scalar_value(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-lifecycle: draft
+        """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {"x-lifecycle": frozenset({"draft"})}
+
+
+def test_skip_extensions_mapping_form_value_list(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-status: [draft, alpha]
+        """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {"x-status": frozenset({"draft", "alpha"})}
+
+
+def test_skip_extensions_mapping_form_mixed(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-draft: true
+          x-lifecycle: draft
+          x-status: [draft, alpha]
+        """)
+    )
+    cfg = load_config(str(cfg_file))
+    assert cfg.skip_extensions == {
+        "x-draft": None,
+        "x-lifecycle": frozenset({"draft"}),
+        "x-status": frozenset({"draft", "alpha"}),
+    }
+
+
+def test_skip_extensions_mapping_form_false_value_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-draft: false
+        """)
+    )
+    with pytest.raises(ValueError, match="ambiguous"):
+        load_config(str(cfg_file))
+
+
+def test_skip_extensions_mapping_form_nested_dict_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text(
+        dedent("""\
+        spec: openapi.yaml
+        skip_extensions:
+          x-foo: {equals: draft}
+        """)
+    )
+    with pytest.raises(ValueError, match="must be `true`"):
+        load_config(str(cfg_file))
+
+
+def test_skip_extensions_not_in_known_keys_raises(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "pyoas.yaml"
+    cfg_file.write_text("spec: openapi.yaml\nskip_extenshuns: [x-draft]\n")
+    with pytest.raises(ValueError, match="Unknown config key"):
+        load_config(str(cfg_file))

@@ -881,7 +881,12 @@ def scaffold_webhooks(
     from pyoas.core.utils import tag_to_dirname
 
     spec = ParsedSpec.from_config(cfg).resolved
-    grouped = extract_tags(spec, default_tag=cfg.default_tag, include_webhooks=True)
+    grouped = extract_tags(
+        spec,
+        default_tag=cfg.default_tag,
+        include_webhooks=True,
+        skip_extensions=cfg.skip_extensions,
+    )
 
     webhook_tags = [
         tag for tag, ops in grouped.items() if any(op.get("is_webhook") for op in ops)
@@ -1132,8 +1137,12 @@ def _scaffold_test_drift(cfg, tag_filter: list[str] | None) -> list[str]:  # noq
 
     spec_raw = SpecParser(cfg.spec).load()
     spec = resolve_refs(spec_raw, cfg.spec)
-    grouped = extract_tags(spec, default_tag=cfg.default_tag)
-    grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+    grouped = extract_tags(
+        spec, default_tag=cfg.default_tag, skip_extensions=cfg.skip_extensions
+    )
+    grouped_raw = extract_tags(
+        spec_raw, default_tag=cfg.default_tag, skip_extensions=cfg.skip_extensions
+    )
     if tag_filter:
         grouped = {k: v for k, v in grouped.items() if k in tag_filter}
 

@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from pyoas.core.tags import SkipExtensions, normalize_skip_extensions
 from pyoas.core.utils import derive_import_path
 
 _VALID_PYDANTIC_EXTRA: frozenset[str] = frozenset({"ignore", "allow", "forbid"})
@@ -29,6 +30,7 @@ _KNOWN_CONFIG_KEYS: frozenset[str] = frozenset(
         "plugins",
         "router_scaffold",
         "model_scaffold",
+        "skip_extensions",
     }
 )
 
@@ -171,6 +173,7 @@ class Config:
     plugins: list[str] = field(default_factory=list)
     router_scaffold: RouterScaffoldConfig = field(default_factory=RouterScaffoldConfig)
     model_scaffold: ModelScaffoldConfig = field(default_factory=ModelScaffoldConfig)
+    skip_extensions: SkipExtensions = field(default_factory=dict)
 
 
 def _validate_template_dir(path: str, key: str, required_file: str) -> None:
@@ -317,6 +320,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             overwrite=msc.get("overwrite", False),
             drift_log=_resolve(msc.get("drift_log")) if msc.get("drift_log") else None,
         ),
+        skip_extensions=normalize_skip_extensions(data.get("skip_extensions")),
     )
 
 

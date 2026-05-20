@@ -54,10 +54,16 @@ class ModelScaffolder:
 
         include_webhooks = cfg.webhooks.generate
         grouped = extract_tags(
-            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         grouped_raw = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         grouped_raw_all = grouped_raw
 
@@ -334,10 +340,16 @@ def detect_model_drift(
 
     include_webhooks = cfg.webhooks.generate
     grouped = extract_tags(
-        spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        spec,
+        default_tag=cfg.default_tag,
+        include_webhooks=include_webhooks,
+        skip_extensions=cfg.skip_extensions,
     )
     grouped_raw_all = extract_tags(
-        spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        spec_raw,
+        default_tag=cfg.default_tag,
+        include_webhooks=include_webhooks,
+        skip_extensions=cfg.skip_extensions,
     )
     if tag_filter:
         grouped = {k: v for k, v in grouped.items() if k in tag_filter}
@@ -352,7 +364,10 @@ def detect_model_drift(
     inline_by_tag, inline_request_names = collect_inline_schemas(
         grouped,
         extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         ),
     )
     request_only_names |= inline_request_names

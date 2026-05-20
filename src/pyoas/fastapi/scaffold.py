@@ -87,8 +87,16 @@ class ServiceScaffolder:
         else:
             spec_raw = parsed_spec.raw
             spec = parsed_spec.resolved
-        grouped = extract_tags(spec, default_tag=cfg.default_tag)
-        grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        grouped = extract_tags(
+            spec,
+            default_tag=cfg.default_tag,
+            skip_extensions=cfg.skip_extensions,
+        )
+        grouped_raw = extract_tags(
+            spec_raw,
+            default_tag=cfg.default_tag,
+            skip_extensions=cfg.skip_extensions,
+        )
 
         if tag_filter:
             grouped = {k: v for k, v in grouped.items() if k in tag_filter}
@@ -96,7 +104,11 @@ class ServiceScaffolder:
 
         global_security: list[Any] = spec_raw.get("security") or []
         raw_cs = spec_raw.get("components", {}).get("schemas", {})
-        grouped_raw_all = extract_tags(spec_raw, default_tag=cfg.default_tag)
+        grouped_raw_all = extract_tags(
+            spec_raw,
+            default_tag=cfg.default_tag,
+            skip_extensions=cfg.skip_extensions,
+        )
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw_all)
         generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
         generic_name_map: dict[str, str] = {
@@ -295,15 +307,21 @@ def detect_service_drift(
 
     spec_raw = SpecParser(cfg.spec).load()
     spec = resolve_refs(spec_raw, cfg.spec)
-    grouped = extract_tags(spec, default_tag=cfg.default_tag)
-    grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+    grouped = extract_tags(
+        spec, default_tag=cfg.default_tag, skip_extensions=cfg.skip_extensions
+    )
+    grouped_raw = extract_tags(
+        spec_raw, default_tag=cfg.default_tag, skip_extensions=cfg.skip_extensions
+    )
     if tag_filter:
         grouped = {k: v for k, v in grouped.items() if k in tag_filter}
         grouped_raw = {k: v for k, v in grouped_raw.items() if k in tag_filter}
 
     global_security: list[Any] = spec_raw.get("security") or []
     raw_cs = spec_raw.get("components", {}).get("schemas", {})
-    full_grouped_raw = extract_tags(spec_raw, default_tag=cfg.default_tag)
+    full_grouped_raw = extract_tags(
+        spec_raw, default_tag=cfg.default_tag, skip_extensions=cfg.skip_extensions
+    )
     schema_tag_map = build_schema_tag_map(spec_raw, full_grouped_raw)
     generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
     generic_name_map: dict[str, str] = {

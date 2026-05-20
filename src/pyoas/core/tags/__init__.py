@@ -7,11 +7,99 @@ HTTP_METHODS = frozenset(
     {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
 )
 
+# Matcher value for a skip_extensions entry:
+#   None              → presence/truthy match (skip if op[key] is truthy)
+#   frozenset(values) → equality match (skip if op[key] is in the set)
+SkipMatcher = frozenset[Any] | None
+SkipExtensions = dict[str, SkipMatcher]
+
+
+def normalize_skip_extensions(
+    value: Any,
+) -> SkipExtensions:
+    """Normalize a user-supplied skip_extensions value into the internal form.
+
+    Accepts:
+      * ``None`` or empty list/dict → no filtering.
+      * ``list[str]`` (legacy) → each entry is a presence/truthy check.
+      * ``dict[str, ...]`` → value-aware matching, where the value may be:
+          - ``True``  → presence/truthy check.
+          - a scalar (``str``/``int``/``float``) → equality match.
+          - a list of scalars → match if op[key] is in the list.
+
+    Raises ``ValueError`` with a clear message for any other shape (including
+    ``False``, ``None``, or nested mappings as values) so misconfigured YAML
+    fails loudly rather than silently doing nothing.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, (list, tuple)):
+        result: SkipExtensions = {}
+        for entry in value:
+            if not isinstance(entry, str):
+                raise ValueError(
+                    "skip_extensions list entries must be strings; got "
+                    f"{type(entry).__name__}"
+                )
+            result[entry] = None
+        return result
+    if isinstance(value, dict):
+        result = {}
+        for key, raw in value.items():
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"skip_extensions keys must be strings; got {type(key).__name__}"
+                )
+            if raw is True:
+                result[key] = None
+            elif isinstance(raw, bool):
+                raise ValueError(
+                    f"skip_extensions[{key!r}] = false is ambiguous; either "
+                    "remove the entry to disable it or use `true` for a "
+                    "presence check"
+                )
+            elif isinstance(raw, (str, int, float)):
+                result[key] = frozenset({raw})
+            elif isinstance(raw, list):
+                try:
+                    result[key] = frozenset(raw)
+                except TypeError as exc:
+                    raise ValueError(
+                        f"skip_extensions[{key!r}] list contains unhashable values"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"skip_extensions[{key!r}] must be `true`, a scalar, or a "
+                    f"list of scalars; got {type(raw).__name__}"
+                )
+        return result
+    raise ValueError(
+        f"skip_extensions must be a list or mapping; got {type(value).__name__}"
+    )
+
+
+def _matches_skip(operation: dict[str, Any], skip: SkipExtensions) -> bool:
+    """Return True if the operation matches any configured skip rule (OR)."""
+    for key, allowed in skip.items():
+        value = operation.get(key)
+        if allowed is None:
+            if value:
+                return True
+        else:
+            try:
+                if value in allowed:
+                    return True
+            except TypeError:
+                # unhashable op value (e.g. list/dict) — cannot match by equality
+                continue
+    return False
+
 
 def extract_tags(
     spec: dict[str, Any],
     default_tag: str = "default",
     include_webhooks: bool = False,
+    skip_extensions: SkipExtensions | list[str] | tuple[str, ...] = (),
 ) -> dict[str, list[dict[str, Any]]]:
     """
     Group all path operations in the spec by their first tag.
@@ -31,6 +119,12 @@ def extract_tags(
     ``webhooks:`` map (OAS 3.1) are included alongside path operations.
     """
     grouped: dict[str, list[dict[str, Any]]] = {}
+
+    skip_filter: SkipExtensions = (
+        skip_extensions
+        if isinstance(skip_extensions, dict)
+        else {key: None for key in skip_extensions}
+    )
 
     declared_tags = {
         t["name"] for t in spec.get("tags", []) if isinstance(t, dict) and "name" in t
@@ -57,6 +151,9 @@ def extract_tags(
             if method not in HTTP_METHODS:
                 continue
             if not isinstance(operation, dict):
+                continue
+
+            if skip_filter and _matches_skip(operation, skip_filter):
                 continue
 
             # Merge path-level parameters into the operation. Operation-level

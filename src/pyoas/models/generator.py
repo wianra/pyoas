@@ -94,11 +94,17 @@ class ModelGenerator:
 
         include_webhooks = cfg.webhooks.generate
         grouped = extract_tags(
-            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         # Use raw spec for schema-tag mapping so $ref strings are still intact.
         grouped_raw = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         # Keep the unfiltered grouped_raw so unreferenced detection is not confused
         # by schemas that are referenced by non-filtered tags.

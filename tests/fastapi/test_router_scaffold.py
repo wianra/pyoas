@@ -295,3 +295,73 @@ def test_detect_router_drift_tag_filter(tmp_path: Path) -> None:
 
     missing_files = [i for i in items if i.kind == "missing_file"]
     assert all("pets" in i.file for i in missing_files)
+
+
+# ---------------------------------------------------------------------------
+# skip_extensions
+# ---------------------------------------------------------------------------
+
+
+_DRAFT_SPEC_YAML = """\
+openapi: 3.0.3
+info: {title: t, version: '1'}
+paths:
+  /published:
+    get:
+      operationId: listPublished
+      tags: [items]
+      responses:
+        '200': {description: ok}
+  /draft:
+    get:
+      operationId: listDraft
+      tags: [items]
+      x-draft: true
+      responses:
+        '200': {description: ok}
+"""
+
+
+def _make_skip_cfg(spec_path: Path, output_dir: Path) -> Config:
+    return Config(
+        spec=str(spec_path),
+        output=OutputConfig(
+            models=str(output_dir / "gen_models"),
+            routers=str(output_dir / "gen_routers"),
+        ),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+        router_scaffold=RouterScaffoldConfig(
+            generate=True,
+            output=str(output_dir),
+            overwrite=False,
+        ),
+        skip_extensions={"x-draft": None},
+    )
+
+
+def test_router_scaffold_skips_x_draft_operations(tmp_path: Path) -> None:
+    spec_path = tmp_path / "spec.yaml"
+    spec_path.write_text(_DRAFT_SPEC_YAML, encoding="utf-8")
+
+    output_dir = tmp_path / "routers"
+    cfg = _make_skip_cfg(spec_path, output_dir)
+    RouterScaffolder(cfg).scaffold()
+
+    items_src = _read(output_dir / "items.py")
+    assert "list_published" in items_src
+    assert "list_draft" not in items_src
+
+
+def test_router_drift_ignores_x_draft_operations(tmp_path: Path) -> None:
+    spec_path = tmp_path / "spec.yaml"
+    spec_path.write_text(_DRAFT_SPEC_YAML, encoding="utf-8")
+
+    output_dir = tmp_path / "routers"
+    cfg = _make_skip_cfg(spec_path, output_dir)
+    RouterScaffolder(cfg).scaffold()
+
+    items = detect_router_drift(cfg)
+    # No drift expected — draft op should be filtered out, published op already
+    # scaffolded.
+    assert [i for i in items if i.kind != "orphaned_endpoint"] == []

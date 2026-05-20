@@ -48,10 +48,16 @@ class RouterScaffolder:
         spec = resolve_refs(spec_raw, cfg.spec)
         include_webhooks = cfg.webhooks.generate
         grouped = extract_tags(
-            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         grouped_raw = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
 
         if tag_filter:
@@ -61,7 +67,10 @@ class RouterScaffolder:
         global_security: list[Any] = spec_raw.get("security") or []
         raw_cs = spec_raw.get("components", {}).get("schemas", {})
         grouped_raw_all = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw_all)
         generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)
@@ -259,10 +268,16 @@ def detect_router_drift(
     spec = resolve_refs(spec_raw, cfg.spec)
     include_webhooks = cfg.webhooks.generate
     grouped = extract_tags(
-        spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        spec,
+        default_tag=cfg.default_tag,
+        include_webhooks=include_webhooks,
+        skip_extensions=cfg.skip_extensions,
     )
     grouped_raw = extract_tags(
-        spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        spec_raw,
+        default_tag=cfg.default_tag,
+        include_webhooks=include_webhooks,
+        skip_extensions=cfg.skip_extensions,
     )
     if tag_filter:
         grouped = {k: v for k, v in grouped.items() if k in tag_filter}
@@ -271,7 +286,10 @@ def detect_router_drift(
     global_security: list[Any] = spec_raw.get("security") or []
     raw_cs = spec_raw.get("components", {}).get("schemas", {})
     full_grouped_raw = extract_tags(
-        spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+        spec_raw,
+        default_tag=cfg.default_tag,
+        include_webhooks=include_webhooks,
+        skip_extensions=cfg.skip_extensions,
     )
     schema_tag_map = build_schema_tag_map(spec_raw, full_grouped_raw)
     generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)

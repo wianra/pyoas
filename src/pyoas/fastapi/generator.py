@@ -87,10 +87,16 @@ class RouterGenerator:
 
         include_webhooks = cfg.webhooks.generate
         grouped = extract_tags(
-            spec, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         grouped_raw = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
 
         if tag_filter:
@@ -100,7 +106,10 @@ class RouterGenerator:
         # Build generic name map: {mangled_schema_name: "GenericName[TypeParam]"}
         raw_cs = spec_raw.get("components", {}).get("schemas", {})
         grouped_raw_all = extract_tags(
-            spec_raw, default_tag=cfg.default_tag, include_webhooks=include_webhooks
+            spec_raw,
+            default_tag=cfg.default_tag,
+            include_webhooks=include_webhooks,
+            skip_extensions=cfg.skip_extensions,
         )
         schema_tag_map = build_schema_tag_map(spec_raw, grouped_raw_all)
         generic_groups = detect_generic_groups_global(raw_cs, schema_tag_map)

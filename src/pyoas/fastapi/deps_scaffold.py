@@ -61,12 +61,18 @@ def _extract_oauth2_token_url(scheme: dict[str, Any]) -> str:
     return "token"
 
 
-def _has_any_secured_operation(spec_raw: dict[str, Any], default_tag: str) -> bool:
+def _has_any_secured_operation(
+    spec_raw: dict[str, Any],
+    default_tag: str,
+    skip_extensions: Any = (),
+) -> bool:
     """Return True if at least one operation in the spec requires authentication."""
     from pyoas.fastapi.generator import has_security
 
     global_security: list[Any] = spec_raw.get("security") or []
-    grouped = extract_tags(spec_raw, default_tag=default_tag)
+    grouped = extract_tags(
+        spec_raw, default_tag=default_tag, skip_extensions=skip_extensions
+    )
     for operations in grouped.values():
         for op_entry in operations:
             operation = op_entry["operation"]
@@ -75,12 +81,18 @@ def _has_any_secured_operation(spec_raw: dict[str, Any], default_tag: str) -> bo
     return False
 
 
-def _collect_all_scopes(spec_raw: dict[str, Any], default_tag: str) -> list[str]:
+def _collect_all_scopes(
+    spec_raw: dict[str, Any],
+    default_tag: str,
+    skip_extensions: Any = (),
+) -> list[str]:
     """Return a sorted, deduplicated list of all OAuth2 scope names in the spec."""
     from pyoas.fastapi.generator import _extract_security_scopes
 
     global_security: list[Any] = spec_raw.get("security") or []
-    grouped = extract_tags(spec_raw, default_tag=default_tag)
+    grouped = extract_tags(
+        spec_raw, default_tag=default_tag, skip_extensions=skip_extensions
+    )
     scopes: list[str] = []
     for operations in grouped.values():
         for op_entry in operations:
@@ -109,7 +121,9 @@ class DependencyScaffolder:
 
         spec_raw = SpecParser(cfg.spec).load()
 
-        if not _has_any_secured_operation(spec_raw, cfg.default_tag):
+        if not _has_any_secured_operation(
+            spec_raw, cfg.default_tag, cfg.skip_extensions
+        ):
             typer.echo(
                 "No secured operations found in the spec — skipping dependency scaffolding.",
                 err=True,
@@ -124,7 +138,9 @@ class DependencyScaffolder:
 
         auth_file = output_root / "auth.py"
         if not auth_file.exists() or cfg.dependencies.overwrite:
-            all_scopes = _collect_all_scopes(spec_raw, cfg.default_tag)
+            all_scopes = _collect_all_scopes(
+                spec_raw, cfg.default_tag, cfg.skip_extensions
+            )
             src = renderer.render(
                 "dependency_auth.py.jinja2",
                 {
