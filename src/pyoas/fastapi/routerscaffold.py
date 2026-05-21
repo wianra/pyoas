@@ -24,7 +24,7 @@ from pyoas.core.renderer import Renderer
 from pyoas.core.resolver import resolve_refs
 from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
-from pyoas.core.utils import tag_to_dirname
+from pyoas.core.utils import format_docstring, tag_to_dirname
 
 from .generator import build_router_context
 
@@ -149,8 +149,6 @@ class RouterScaffolder:
             inline_schema_tag_map=inline_schema_tag_map,
             global_security=global_security,
         )
-        # Scaffold routers never delegate to a service layer.
-        context["service_import_path"] = None
 
         if not router_file.exists() or self._config.router_scaffold.overwrite:
             src = renderer.render("router_scaffold.py.jinja2", context)
@@ -203,7 +201,16 @@ class RouterScaffolder:
             return tag_result
 
         dep_import_path = context.get("dep_import_path")
-        stubs = _render_endpoint_stubs(new_ops, dep_import_path=dep_import_path)
+        service_import_path = context.get("service_import_path")
+        service_class_name = context.get("service_class_name")
+        service_dep_fn = context.get("service_dep_fn")
+        stubs = _render_endpoint_stubs(
+            new_ops,
+            dep_import_path=dep_import_path,
+            service_import_path=service_import_path,
+            service_class_name=service_class_name,
+            service_dep_fn=service_dep_fn,
+        )
 
         # Ensure AuthContext is imported when new secured endpoints are being added.
         if dep_import_path and any(op.get("has_security") for op in new_ops):
@@ -221,6 +228,40 @@ class RouterScaffolder:
                     )
                 else:
                     existing_src = import_line + "\n\n" + existing_src
+
+        # Ensure service + Depends are imported when delegating to a service layer.
+        if service_import_path and service_class_name and service_dep_fn:
+            svc_import = (
+                f"from {service_import_path}.{tag_dirname} import "
+                f"{service_class_name}, {service_dep_fn}"
+            )
+            if svc_import not in existing_src:
+                router_decl = re.search(
+                    r"^router = APIRouter\(", existing_src, re.MULTILINE
+                )
+                if router_decl:
+                    pos = router_decl.start()
+                    existing_src = (
+                        existing_src[:pos] + svc_import + "\n" + existing_src[pos:]
+                    )
+                else:
+                    existing_src = svc_import + "\n\n" + existing_src
+            if not re.search(
+                r"^from fastapi import [^\n]*\bDepends\b", existing_src, re.MULTILINE
+            ):
+                fastapi_line = re.search(
+                    r"^from fastapi import (.+)$", existing_src, re.MULTILINE
+                )
+                if fastapi_line:
+                    names = [n.strip() for n in fastapi_line.group(1).split(",")]
+                    if "Depends" not in names:
+                        names.append("Depends")
+                        new_line = "from fastapi import " + ", ".join(sorted(names))
+                        existing_src = (
+                            existing_src[: fastapi_line.start()]
+                            + new_line
+                            + existing_src[fastapi_line.end() :]
+                        )
 
         updated = existing_src.rstrip() + "\n\n\n" + stubs
         router_file.write_text(updated, encoding="utf-8")
@@ -324,7 +365,6 @@ def detect_router_drift(
             inline_schema_tag_map=inline_schema_tag_map,
             global_security=global_security,
         )
-        context["service_import_path"] = None
         tag_dirname = tag_to_dirname(tag)
         router_file = router_root / f"{tag_dirname}.py"
         current_fns = {op["function_name"] for op in context["operations"]}
@@ -460,7 +500,11 @@ def _emit_router_drift_warnings(warnings: list[str], config: Config) -> None:
 
 
 def _render_endpoint_stubs(
-    operations: list[dict[str, Any]], dep_import_path: str | None = None
+    operations: list[dict[str, Any]],
+    dep_import_path: str | None = None,
+    service_import_path: str | None = None,
+    service_class_name: str | None = None,
+    service_dep_fn: str | None = None,
 ) -> str:
     """Render new endpoint stubs as a plain string for append-only inserts."""
     lines: list[str] = []
@@ -482,8 +526,10 @@ def _render_endpoint_stubs(
         dec += (", " + ", ".join(extras) if extras else "") + ")"
         lines.append(dec)
 
-        has_kwonly = bool(op["parameters"]) or bool(
-            dep_import_path and op.get("has_security")
+        has_kwonly = (
+            bool(op["parameters"])
+            or bool(dep_import_path and op.get("has_security"))
+            or bool(service_import_path)
         )
         lines.append(f"async def {op['function_name']}(")
         if has_kwonly:
@@ -506,10 +552,24 @@ def _render_endpoint_stubs(
                     "    # TODO: add authentication dependency, "
                     "e.g.: current_user = Depends(get_auth_context)"
                 )
+        if service_import_path and service_class_name and service_dep_fn:
+            lines.append(
+                f"    service: {service_class_name} = Depends({service_dep_fn}),"
+            )
         lines.append(f") -> {op['response_type'] or 'None'}:")
         if op.get("description"):
-            lines.append(f'    """{op["description"]}"""')
-        lines.append("    raise NotImplementedError")
+            lines.append(format_docstring(op["description"], indent="    "))
+        if service_import_path:
+            fwd_args = [f"{p['name']}={p['name']}" for p in op["parameters"]]
+            if dep_import_path and op.get("has_security"):
+                fwd_args.append("auth=current_user")
+            call = f"service.{op['function_name']}({', '.join(fwd_args)})"
+            if op["response_type"] and op["response_type"] != "None":
+                lines.append(f"    return await {call}")
+            else:
+                lines.append(f"    await {call}")
+        else:
+            lines.append("    raise NotImplementedError")
         lines.append("")
         lines.append("")
     return "\n".join(lines)

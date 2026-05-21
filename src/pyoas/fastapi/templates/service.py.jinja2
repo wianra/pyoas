@@ -40,7 +40,7 @@ class {{ service_class_name }}:
 {% endif %}
     ) -> {{ op.response_type }}:
 {% if op.summary or op.description %}
-        """{{ op.summary or op.description }}"""
+        """{{ (op.summary or op.description) | trim | indent(8) }}"""
 {% endif %}
         raise NotImplementedError
 

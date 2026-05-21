@@ -945,19 +945,13 @@ def _build_test_context(
             _auto_fns.update(re.findall(r"(make_\w+)", _op["response_factory"]))
     auto_impl_factories = sorted(_auto_fns)
 
-    # Derive conftest import path for the auto-implemented factory calls.
-    # Resolve the tests output path relative to the spec/config directory so
-    # the import path is stable regardless of the cwd when pyoas is run.
-    _tests_rel = config.tests.output
-    _tp = Path(_tests_rel)
-    if _tp.is_absolute():
-        project_root = Path(config.spec).parent
-        try:
-            _tests_rel = str(_tp.relative_to(project_root))
-        except ValueError:
-            pass
     conftest_import_path = (
-        derive_import_path(_tests_rel, config.output.source_root) + ".conftest"
+        derive_import_path(
+            config.tests.output,
+            config.output.source_root,
+            project_root=config.project_root,
+        )
+        + ".conftest"
         if auto_impl_factories
         else None
     )
@@ -968,9 +962,18 @@ def _build_test_context(
     )
 
     tag_dirname = tag_to_dirname(tag)
-    router_import_path = config.output.routers_import or derive_import_path(
-        config.output.routers, config.output.source_root
-    )
+    if config.router_scaffold.generate:
+        router_import_path = derive_import_path(
+            config.router_scaffold.output,
+            config.output.source_root,
+            project_root=config.project_root,
+        )
+    else:
+        router_import_path = config.output.routers_import or derive_import_path(
+            config.output.routers,
+            config.output.source_root,
+            project_root=config.project_root,
+        )
     service_class_name = to_pascal_case(tag_dirname) + "Service"
     service_dep_fn = f"get_{tag_dirname}_service"
 

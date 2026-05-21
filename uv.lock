@@ -924,8 +924,6 @@ all = [
 ]
 fastapi = [
     { name = "fastapi" },
-]
-testing = [
     { name = "polyfactory" },
 ]
 
@@ -947,14 +945,14 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
     { name = "jsonref", specifier = ">=1.1" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
-    { name = "polyfactory", marker = "extra == 'testing'", specifier = ">=2.0" },
+    { name = "polyfactory", marker = "extra == 'fastapi'", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "pyoas", extras = ["fastapi", "claude", "testing"], marker = "extra == 'all'" },
+    { name = "pyoas", extras = ["fastapi", "claude"], marker = "extra == 'all'" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12" },
     { name = "watchdog", specifier = ">=3.0" },
 ]
-provides-extras = ["fastapi", "claude", "testing", "all"]
+provides-extras = ["fastapi", "claude", "all"]
 
 [package.metadata.requires-dev]
 dev = [

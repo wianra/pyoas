@@ -174,6 +174,9 @@ class Config:
     router_scaffold: RouterScaffoldConfig = field(default_factory=RouterScaffoldConfig)
     model_scaffold: ModelScaffoldConfig = field(default_factory=ModelScaffoldConfig)
     skip_extensions: SkipExtensions = field(default_factory=dict)
+    project_root: str | None = (
+        None  # directory containing pyoas.yaml; used to derive import paths
+    )
 
 
 def _validate_template_dir(path: str, key: str, required_file: str) -> None:
@@ -321,6 +324,7 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             drift_log=_resolve(msc.get("drift_log")) if msc.get("drift_log") else None,
         ),
         skip_extensions=normalize_skip_extensions(data.get("skip_extensions")),
+        project_root=str(base_dir) if base_dir is not None else None,
     )
 
 

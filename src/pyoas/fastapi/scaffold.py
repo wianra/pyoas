@@ -27,6 +27,7 @@ from pyoas.core.result import ScaffoldResult
 from pyoas.core.tags import extract_tags
 from pyoas.core.utils import (
     derive_import_path,
+    format_docstring,
     generate_function_name,
     tag_to_dirname,
     to_pascal_case,
@@ -507,7 +508,7 @@ def _render_method_stubs(
         lines.append(f"    ) -> {op['response_type']}:")
         docstring = op.get("summary") or op.get("description")
         if docstring:
-            lines.append(f'        """{docstring}"""')
+            lines.append(format_docstring(docstring, indent="        "))
         lines.append("        raise NotImplementedError")
         lines.append("")
     return "\n".join(lines) + "\n"

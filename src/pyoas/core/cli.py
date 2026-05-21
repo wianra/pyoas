@@ -211,6 +211,13 @@ def fastapi(
     from pyoas.core.plugins import load_plugins
 
     cfg = _load_cfg(config)
+    if cfg.router_scaffold.generate and not quiet:
+        typer.echo(
+            "Note: router_scaffold.generate is true. `pyoas fastapi` still writes "
+            f"generated routers to {cfg.output.routers}; use `pyoas scaffold routers` "
+            "for the scaffold workflow.",
+            err=True,
+        )
     callback = None if quiet else lambda msg: typer.echo(msg, err=True)
     plugins = load_plugins(cfg)
     parsed = _run_spec_loaded_hooks(plugins, ParsedSpec.from_config(cfg))
@@ -301,17 +308,31 @@ def generate(
         verbose=verbose,
         skip_format=True,
     )
-    router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
-    router_written = router_gen.generate(
-        tag_filter=tag_filter,
-        clean=clean,
-        parsed_spec=parsed,
-        progress_callback=callback,
-        verbose=verbose,
-        skip_format=True,
-    )
+    router_written: list[Path] = []
+    if cfg.router_scaffold.generate:
+        if not quiet:
+            typer.echo(
+                "Router scaffold is enabled — skipping generated routers; "
+                f"scaffold output: {cfg.router_scaffold.output}",
+                err=True,
+            )
+    else:
+        router_gen = RouterGenerator(cfg)  # type: ignore[possibly-undefined]
+        router_written = router_gen.generate(
+            tag_filter=tag_filter,
+            clean=clean,
+            parsed_spec=parsed,
+            progress_callback=callback,
+            verbose=verbose,
+            skip_format=True,
+        )
     if cfg.format.enabled:
-        _format_output(Path(cfg.output.models), Path(cfg.output.routers))
+        format_paths: list[Path] = [Path(cfg.output.models)]
+        if cfg.router_scaffold.generate:
+            format_paths.append(Path(cfg.router_scaffold.output))
+        else:
+            format_paths.append(Path(cfg.output.routers))
+        _format_output(*format_paths)
     if not quiet:
         for path in model_written + router_written:
             typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
@@ -459,12 +480,13 @@ def diff(
         tmp_cfg.output.routers = tmp_routers
 
         ModelGenerator(tmp_cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
-        RouterGenerator(tmp_cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
+        if not cfg.router_scaffold.generate:
+            RouterGenerator(tmp_cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
 
-        for target_root, actual_root in (
-            (tmp_models, cfg.output.models),
-            (tmp_routers, cfg.output.routers),
-        ):
+        compare_pairs: list[tuple[str, str]] = [(tmp_models, cfg.output.models)]
+        if not cfg.router_scaffold.generate:
+            compare_pairs.append((tmp_routers, cfg.output.routers))
+        for target_root, actual_root in compare_pairs:
             target = Path(target_root)
             actual = Path(actual_root)
             for new_file in sorted(target.rglob("*.py")):
@@ -1064,7 +1086,8 @@ def watch(
             cfg = _load_cfg(config)
             tag_filter = _tag_filter(tags)
             ModelGenerator(cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
-            RouterGenerator(cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
+            if not cfg.router_scaffold.generate:
+                RouterGenerator(cfg).generate(tag_filter=tag_filter)  # type: ignore[possibly-undefined]
 
             if cfg.dependencies.generate:
                 from pyoas.fastapi import DependencyScaffolder

@@ -209,6 +209,29 @@ def test_generate_writes_models_and_routers(tmp_path: Path) -> None:
     assert (tmp_path / "routers" / "pets.py").exists()
 
 
+def test_generate_skips_generated_routers_when_scaffold_enabled(tmp_path: Path) -> None:
+    """router_scaffold.generate=true must suppress the generated-routers output."""
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "petstore_3.0.yaml",
+        router_scaffold={
+            "generate": True,
+            "output": str(tmp_path / "app" / "routers"),
+            "overwrite": True,
+        },
+    )
+    result = runner.invoke(app, ["generate", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    # Scaffold output is written
+    assert (tmp_path / "app" / "routers" / "pets.py").exists()
+    # Generated-routers output is NOT written
+    assert not (tmp_path / "routers").exists() or not list(
+        (tmp_path / "routers").rglob("*.py")
+    )
+    # The skip notice is surfaced
+    assert "Router scaffold is enabled" in result.output
+
+
 def test_generate_summary_table_contains_separator_lines(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
     result = runner.invoke(app, ["generate", "--config", str(cfg)])

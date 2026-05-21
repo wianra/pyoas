@@ -4,7 +4,9 @@ from unittest import mock
 import pytest
 
 from pyoas.core.utils import (
+    derive_import_path,
     ensure_intermediate_inits,
+    format_docstring,
     format_output,
     generate_function_name,
     to_snake_case,
@@ -124,3 +126,64 @@ def test_format_output_calls_ruff(tmp_path: Path) -> None:
 def test_format_output_ignores_failures(tmp_path: Path) -> None:
     with mock.patch("pyoas.core.utils.subprocess.run", side_effect=FileNotFoundError):
         format_output(tmp_path)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# format_docstring
+# ---------------------------------------------------------------------------
+
+
+def test_format_docstring_single_line() -> None:
+    assert format_docstring("hello") == '    """hello"""'
+
+
+def test_format_docstring_multi_line_indents_subsequent_lines() -> None:
+    out = format_docstring("first\nsecond\nthird")
+    assert out == '    """first\n    second\n    third"""'
+
+
+def test_format_docstring_custom_indent() -> None:
+    out = format_docstring("a\nb", indent="        ")
+    assert out == '        """a\n        b"""'
+
+
+def test_format_docstring_strips_trailing_whitespace() -> None:
+    """Trailing newlines must not produce a dangling unindented closing line."""
+    out = format_docstring("one\ntwo\n")
+    assert out == '    """one\n    two"""'
+
+
+def test_format_docstring_empty_returns_empty_string() -> None:
+    assert format_docstring("") == ""
+    assert format_docstring("   \n   ") == ""
+
+
+def test_format_docstring_blank_internal_line_preserved() -> None:
+    out = format_docstring("a\n\nb")
+    assert out == '    """a\n\n    b"""'
+
+
+# ---------------------------------------------------------------------------
+# derive_import_path with project_root
+# ---------------------------------------------------------------------------
+
+
+def test_derive_import_path_relative_path() -> None:
+    assert derive_import_path("app/routers", source_root="") == "app.routers"
+
+
+def test_derive_import_path_absolute_rebased_to_project_root(tmp_path: Path) -> None:
+    """Absolute paths under project_root are rebased before import-path derivation."""
+    abs_path = str(tmp_path / "app" / "routers")
+    out = derive_import_path(abs_path, source_root="", project_root=str(tmp_path))
+    assert out == "app.routers"
+
+
+def test_derive_import_path_absolute_outside_project_root_falls_back(
+    tmp_path: Path,
+) -> None:
+    """Absolute paths outside project_root keep absolute behavior (no crash)."""
+    abs_path = "/elsewhere/app/routers"
+    out = derive_import_path(abs_path, source_root="", project_root=str(tmp_path))
+    # No crash; uses the absolute path segments since rebase failed.
+    assert out.endswith("app.routers")

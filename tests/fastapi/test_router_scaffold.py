@@ -15,6 +15,7 @@ from pyoas.core.config import (
     FormatConfig,
     OutputConfig,
     RouterScaffoldConfig,
+    ServicesConfig,
 )
 from pyoas.fastapi.routerscaffold import RouterScaffolder, detect_router_drift
 
@@ -92,8 +93,8 @@ def test_scaffold_petstore_30_first_run(
         assert pets_src == snapshot(name="pets_scaffold_30_first_run")
 
 
-def test_scaffold_does_not_import_service(petstore_30: Path) -> None:
-    """Scaffold router must never import from the service layer."""
+def test_scaffold_does_not_import_service_when_unset(petstore_30: Path) -> None:
+    """Scaffold router omits service imports when services.import_path is empty."""
     with tempfile.TemporaryDirectory() as tmp:
         cfg = _make_cfg(str(petstore_30), tmp)
         RouterScaffolder(cfg).scaffold()
@@ -102,6 +103,102 @@ def test_scaffold_does_not_import_service(petstore_30: Path) -> None:
         assert "PetsService" not in pets_src
         assert "get_pets_service" not in pets_src
         assert "Depends(get_pets_service)" not in pets_src
+
+
+def _make_cfg_with_services(spec_path: str, output_dir: str) -> Config:
+    return Config(
+        spec=spec_path,
+        output=OutputConfig(
+            models="src/generated/models",
+            routers=str(Path(output_dir) / "gen_routers"),
+        ),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+        services=ServicesConfig(
+            generate=True,
+            output=str(Path(output_dir) / "services"),
+            import_path="src.services",
+        ),
+        router_scaffold=RouterScaffoldConfig(
+            generate=True,
+            output=output_dir,
+            overwrite=False,
+        ),
+    )
+
+
+def test_scaffold_delegates_to_service_when_configured(petstore_30: Path) -> None:
+    """Scaffold router calls service.fn(...) when services.import_path is set."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_cfg_with_services(str(petstore_30), tmp)
+        RouterScaffolder(cfg).scaffold()
+
+        pets_src = _read(Path(tmp) / "pets.py")
+        assert "from src.services.pets import PetsService, get_pets_service" in pets_src
+        assert "service: PetsService = Depends(get_pets_service)" in pets_src
+        # GET list_pets returns list[Pet] → must use `return await service.list_pets(`
+        assert "return await service.list_pets(" in pets_src
+        assert "raise NotImplementedError" not in pets_src
+
+
+def test_scaffold_append_adds_service_imports(petstore_30: Path) -> None:
+    """When new endpoints are appended, the service import is added to the file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # First scaffold without services
+        cfg_no_svc = _make_cfg(str(petstore_30), tmp)
+        RouterScaffolder(cfg_no_svc).scaffold()
+        pets_file = Path(tmp) / "pets.py"
+        original = _read(pets_file)
+        # Remove an endpoint so the next pass appends
+        lines = original.split("\n")
+        cut_start = next(i for i, ln in enumerate(lines) if "@router.get" in ln)
+        cut_end = next(
+            i
+            for i, ln in enumerate(lines[cut_start + 1 :], cut_start + 1)
+            if "@router." in ln
+        )
+        pets_file.write_text("\n".join(lines[:cut_start] + lines[cut_end:]))
+
+        # Second pass with services enabled — must add svc import and use service
+        cfg_svc = _make_cfg_with_services(str(petstore_30), tmp)
+        RouterScaffolder(cfg_svc).scaffold()
+        updated = _read(pets_file)
+        assert "from src.services.pets import PetsService, get_pets_service" in updated
+        assert "service: PetsService = Depends(get_pets_service)" in updated
+
+
+def test_scaffold_docstring_indents_multiline_descriptions(tmp_path: Path) -> None:
+    """Multi-line OpenAPI descriptions must keep every line indented under `\"\"\"`."""
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        "openapi: 3.0.3\n"
+        "info: {title: t, version: '1'}\n"
+        "paths:\n"
+        "  /items:\n"
+        "    get:\n"
+        "      operationId: listItems\n"
+        "      tags: [items]\n"
+        "      description: |\n"
+        "        first line\n"
+        "        second line\n"
+        "        third line\n"
+        "      responses:\n"
+        "        '200': {description: ok}\n",
+        encoding="utf-8",
+    )
+    cfg = Config(
+        spec=str(spec),
+        output=OutputConfig(models=str(tmp_path / "m"), routers=str(tmp_path / "r")),
+        fields=FieldsConfig(snake_case=True, enums_as_literals=True),
+        format=FormatConfig(enabled=False),
+        router_scaffold=RouterScaffoldConfig(
+            generate=True, output=str(tmp_path / "scaffold"), overwrite=False
+        ),
+    )
+    RouterScaffolder(cfg).scaffold()
+    src = _read(tmp_path / "scaffold" / "items.py")
+    # All non-first description lines must be indented to column 4.
+    assert '    """first line\n    second line\n    third line"""' in src
 
 
 # ---------------------------------------------------------------------------

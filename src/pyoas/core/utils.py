@@ -20,11 +20,15 @@ def to_pascal_case(name: str) -> str:
     return "".join(word.capitalize() for word in re.split(r"[_\-\s]+", name) if word)
 
 
-def derive_import_path(path: str, source_root: str = "src") -> str:
+def derive_import_path(
+    path: str, source_root: str = "src", project_root: str | None = None
+) -> str:
     """Convert a filesystem output path to a dotted Python import path.
 
     Strips the leading source_root segment when present, so that src-layout
     projects (where ``src/`` is not a Python package) produce correct import paths.
+    When *path* is absolute and *project_root* is provided, the path is first
+    rebased to be relative to project_root.
 
     Examples::
 
@@ -32,6 +36,12 @@ def derive_import_path(path: str, source_root: str = "src") -> str:
         derive_import_path("generated/models", "src")     -> "generated.models"
         derive_import_path("src/generated/models", "")    -> "src.generated.models"
     """
+    p = Path(path)
+    if p.is_absolute() and project_root:
+        try:
+            path = str(p.relative_to(Path(project_root)))
+        except ValueError:
+            pass  # path is outside project_root — fall back to absolute
     segments = path.replace("\\", "/").strip("/").split("/")
     if source_root and segments and segments[0] == source_root.strip("/"):
         segments = segments[1:]
@@ -113,6 +123,23 @@ def generate_function_name(method: str, path: str) -> str:
 def tag_to_dirname(tag: str) -> str:
     """Convert a tag name to a safe filesystem directory/module name."""
     return re.sub(r"[^a-z0-9_]", "_", tag.lower()).strip("_") or "unnamed"
+
+
+def format_docstring(text: str, indent: str = "    ") -> str:
+    """Format a docstring with consistent indentation for multi-line text.
+
+    Single-line text becomes a single-line docstring. Multi-line text indents
+    every line after the first by *indent*, so the docstring sits flush under
+    its declaration regardless of how the source string was wrapped.
+    """
+    text = text.strip()
+    if not text:
+        return ""
+    lines = text.split("\n")
+    if len(lines) == 1:
+        return f'{indent}"""{lines[0]}"""'
+    indented_rest = "\n".join(f"{indent}{line}" if line else "" for line in lines[1:])
+    return f'{indent}"""{lines[0]}\n{indented_rest}"""'
 
 
 def format_output(*output_roots: Path) -> None:

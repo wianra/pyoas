@@ -63,7 +63,7 @@ async def {{ op.function_name }}(
 {% endif %}
 ) -> {{ op.response_type if op.response_type else "None" }}:
 {% if op.description %}
-    """{{ op.description }}"""
+    """{{ op.description | trim | indent(4) }}"""
 {% endif %}
 {% if service_import_path %}
 {% set _fwd = namespace(args=[]) %}
