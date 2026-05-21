@@ -83,3 +83,13 @@ def multi_response(fixtures_dir: Path) -> Path:
 @pytest.fixture
 def secured_scoped(fixtures_dir: Path) -> Path:
     return fixtures_dir / "secured_scoped.yaml"
+
+
+@pytest.fixture
+def wildcard_responses(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "wildcard_responses.yaml"
+
+
+@pytest.fixture
+def binary_response(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "binary_response.yaml"

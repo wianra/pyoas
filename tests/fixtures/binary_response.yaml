@@ -1,0 +1,41 @@
+openapi: "3.0.3"
+info:
+  title: Binary passthrough response
+  version: "1.0"
+paths:
+  /invoices/{id}/pdf:
+    get:
+      operationId: getInvoicePdf
+      tags: [invoices]
+      summary: Binary download — FastAPI Response passthrough
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [invoices]
+      summary: A JSON sibling so the tag still generates a factory
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+components:
+  schemas:
+    Invoice:
+      type: object
+      properties:
+        id: {type: integer}
+        amount: {type: number}

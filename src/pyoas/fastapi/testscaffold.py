@@ -69,9 +69,12 @@ _WRONG_TYPE_VALUES: dict[str, Any] = {
     "boolean": "not-a-boolean",
 }
 
-# Primitive Python type names that should not produce model factories.
+# Type names that should not produce model factories.  Includes Python primitives
+# and ``Response`` — the FastAPI passthrough class returned by
+# ``resolve_response_type`` for endpoints whose 2xx content is binary
+# (e.g. ``application/pdf``).  It is not a generated model.
 _PRIMITIVE_TYPES: frozenset[str] = frozenset(
-    {"None", "str", "int", "float", "bool", "bytes", "Any"}
+    {"None", "str", "int", "float", "bool", "bytes", "Any", "Response"}
 )
 
 # Typing/stdlib names that look like classes but are not model factories.
@@ -89,6 +92,7 @@ _NON_MODEL_NAMES: frozenset[str] = frozenset(
         "Set",
         "Type",
         "Callable",
+        "Response",
     }
 )
 
@@ -418,6 +422,17 @@ class TestScaffolder:
                 "# Scaffolded by pyoas — safe to edit.\n", encoding="utf-8"
             )
 
+        # Synthesized generic bases (e.g. ``PagingResult``) are not real OpenAPI
+        # schemas, so they never appear in schema_tag_map.  Mirror the model
+        # generator's placement rule from context.py: home_tag=None → shared.py,
+        # otherwise that tag's module.
+        generic_base_home: dict[str, str] = {
+            g.generic_name: (
+                "shared" if g.home_tag is None else tag_to_dirname(g.home_tag)
+            )
+            for g in generic_groups.values()
+        }
+
         # Build a globally deduplicated factory list and correct each model's import
         # module using schema_tag_map.  Schemas referenced by multiple tags live in
         # `shared`; those referenced by exactly one tag live in that tag's module.
@@ -433,8 +448,11 @@ class TestScaffolder:
                     elif len(tags_for_name) == 1:
                         t = next(iter(tags_for_name))
                         module = tag_to_dirname(t)
+                    elif name in generic_base_home:
+                        module = generic_base_home[name]
                     else:
-                        # Inline or generic base — fall back to the entry's tag module.
+                        # Inline schema with no schema_tag_map entry — fall back
+                        # to the entry's tag module.
                         module = entry["tag_dirname"]
                     import_groups.setdefault(module, set()).add(name)
                 if factory["type_str"] not in seen_factory_types:

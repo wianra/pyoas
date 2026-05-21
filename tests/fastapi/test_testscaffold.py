@@ -867,3 +867,35 @@ def test_not_found_exception_config_substitution(no_tags: Path) -> None:
         content = _read(Path(tmp) / "test_default.py")
         assert "<NotFoundError>" not in content
         assert "HTTPException(status_code=404, detail='Not found')" in content
+
+
+def test_conftest_skips_binary_response_sentinel(binary_response: Path) -> None:
+    """Binary-only 2xx responses resolve to the FastAPI ``Response`` passthrough;
+    they must not produce a model factory or an import for ``Response``."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(binary_response), tmp)
+        TestScaffolder(cfg).scaffold()
+
+        conftest = _read(Path(tmp) / "conftest.py")
+        assert "make_response(" not in conftest
+        assert "ResponseFactory" not in conftest
+        assert "import Response" not in conftest
+        assert "    Response," not in conftest
+
+        # The binary endpoint's test stub should not auto-call a make_response factory.
+        invoices_tests = _read(Path(tmp) / "test_invoices.py")
+        assert "make_response(" not in invoices_tests
+
+
+def test_conftest_routes_generic_base_to_shared(generic_paginated: Path) -> None:
+    """Synthesized generic bases (e.g. ``Paginated``) live in shared.py when
+    instantiations span multiple tags — the conftest imports must reflect that."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_config(str(generic_paginated), tmp)
+        TestScaffolder(cfg).scaffold()
+
+        conftest = _read(Path(tmp) / "conftest.py")
+        # Paginated is the generic base — must come from shared, not fleet/users.
+        assert "from generated.models.shared import (\n    Paginated,\n)" in conftest
+        assert "from generated.models.fleet import Paginated" not in conftest
+        assert "from generated.models.users import Paginated" not in conftest
