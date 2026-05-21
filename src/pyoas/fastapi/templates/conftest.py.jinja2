@@ -1,8 +1,14 @@
 # Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
 from __future__ import annotations
 
+{% if has_auth_dep %}
+import pytest
+{% endif %}
 {% if factories %}
 from polyfactory.factories.pydantic_factory import ModelFactory
+{% endif %}
+{% if has_auth_dep %}
+from {{ auth_dep_import_path }}.auth import AuthContext
 {% endif %}
 {% for module, names in import_groups.items() %}{% if names %}
 from {{ models_import_path }}.{{ module }} import (
@@ -23,9 +29,6 @@ def {{ factory.func_name }}(**overrides) -> {{ factory.type_str }}:
 {% endfor %}
 {% endif %}
 {% if has_auth_dep %}
-
-import pytest
-from {{ auth_dep_import_path }}.auth import AuthContext
 
 
 @pytest.fixture
