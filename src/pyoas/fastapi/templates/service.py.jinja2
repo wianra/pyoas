@@ -1,15 +1,17 @@
 # Scaffolded by pyoas — safe to edit; won't be overwritten unless overwrite: true.
 from __future__ import annotations
 
-{% if needs_any and needs_annotated %}
-from typing import Any, Annotated
-{% elif needs_any %}
-from typing import Any
-{% elif needs_annotated %}
-from typing import Annotated
+{% set _typing_names = [] %}
+{% if needs_annotated %}{% set _ = _typing_names.append("Annotated") %}{% endif %}
+{% if needs_any %}{% set _ = _typing_names.append("Any") %}{% endif %}
+{% if needs_literal %}{% set _ = _typing_names.append("Literal") %}{% endif %}
+{% if _typing_names %}
+from typing import {{ _typing_names | join(", ") }}
 {% endif %}
-{% if fastapi_param_classes %}
-from fastapi import {{ fastapi_param_classes | join(", ") }}
+{% set _fastapi_names = (fastapi_param_classes or []) | list %}
+{% if needs_response %}{% set _ = _fastapi_names.append("Response") %}{% endif %}
+{% if _fastapi_names %}
+from fastapi import {{ _fastapi_names | sort | join(", ") }}
 {% endif %}
 {% for imp in stdlib_imports %}
 {{ imp }}

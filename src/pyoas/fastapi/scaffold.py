@@ -582,6 +582,11 @@ def _build_service_context(
     combined = " ".join(all_type_strings)
     needs_any = "Any" in combined
     needs_annotated = "Annotated[" in combined
+    needs_literal = "Literal[" in combined
+    # Match `Response` as a standalone token (not e.g. `ChargingActivationResponseDTO`).
+    needs_response = (
+        re.search(r"(?<![A-Za-z0-9_])Response(?![A-Za-z0-9_])", combined) is not None
+    )
     stdlib_imports = sorted(set(required_imports(combined)))
     # fastapi_class is cleared after stripping; only UploadFile remains as a plain type import.
     fastapi_param_classes: list[str] = sorted(
@@ -601,6 +606,7 @@ def _build_service_context(
         tag,
         schema_tag_map or {},
         generic_groups or {},
+        split_schema_names=split_schema_names,
         inline_schema_tag_map=inline_schema_tag_map,
     )
     tag_model_imports = (
@@ -622,6 +628,8 @@ def _build_service_context(
         "operations": rendered_ops,
         "needs_any": needs_any,
         "needs_annotated": needs_annotated,
+        "needs_literal": needs_literal,
+        "needs_response": needs_response,
         "fastapi_param_classes": fastapi_param_classes,
         "stdlib_imports": stdlib_imports,
         "tag_model_imports": tag_model_imports,
