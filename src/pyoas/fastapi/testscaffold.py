@@ -178,6 +178,10 @@ def _default_value_for_field(schema: dict[str, Any]) -> Any:
     if "enum" in schema:
         return schema["enum"][0]
     t = schema.get("type", "string")
+    if t == "array":
+        return []
+    if t == "object":
+        return {}
     base: Any = _FIELD_TYPE_DEFAULTS.get(t, "example")
     if t in ("integer", "number"):
         mn = schema.get("minimum")
@@ -313,6 +317,10 @@ def _default_mock_return_repr(type_str: str) -> str | None:
         return 'b""'
     if ts == "Any":
         return "{}"
+    if ts == "Response":
+        # FastAPI passes Response subclasses through unchanged; an unset AsyncMock
+        # would otherwise reach jsonable_encoder and recurse on dict(mock).
+        return 'Response(content=b"", media_type="application/octet-stream")'
     # Named model types are handled by response_factory; return None here.
     return None
 
@@ -321,6 +329,8 @@ def _minimal_body_repr(body_schema: dict[str, Any]) -> str | None:
     """Return repr of a minimal valid body for the given schema, or None if no body."""
     if not body_schema:
         return None
+    if body_schema.get("type") == "array":
+        return repr([])
     if any(k in body_schema for k in ("allOf", "anyOf", "oneOf")):
         return repr({})
     properties: dict[str, Any] = body_schema.get("properties", {})
@@ -978,6 +988,10 @@ def _build_test_context(
         op["has_not_found_case"] and "HTTPException" in op["not_found_exception_expr"]
         for op in test_ops
     )
+    needs_response_import = any(
+        (op["default_mock_return_repr"] or "").find("Response(") != -1
+        for op in test_ops
+    )
 
     tag_dirname = tag_to_dirname(tag)
     if config.router_scaffold.generate:
@@ -1009,6 +1023,7 @@ def _build_test_context(
         "has_auth_dep": has_auth_dep,
         "auth_dep_import_path": dep_import_path,
         "needs_http_exception_import": needs_http_exception_import,
+        "needs_response_import": needs_response_import,
         "service_import_path": config.services.import_path or None,
         "service_class_name": service_class_name if has_services else None,
         "service_dep_fn": service_dep_fn if has_services else None,

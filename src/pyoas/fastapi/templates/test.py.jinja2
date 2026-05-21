@@ -2,11 +2,8 @@
 from __future__ import annotations
 
 import pytest
-{% if needs_http_exception_import %}
-from fastapi import FastAPI, HTTPException
-{% else %}
-from fastapi import FastAPI
-{% endif %}
+from fastapi import FastAPI{% if needs_http_exception_import %}, HTTPException{% endif %}{% if needs_response_import %}, Response{% endif %}
+
 from fastapi.testclient import TestClient
 from {{ router_import_path }}.{{ tag_dirname }} import router as {{ tag_dirname }}_router
 {% if has_services %}
