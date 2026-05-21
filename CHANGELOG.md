@@ -1,3 +1,9 @@
+## v0.7.0 (2026-05-21)
+
+### Feat
+
+- **scaffold**: delegate to services, skip duplicate routers, fix docstring indent
+
 ## v0.6.0 (2026-05-20)
 
 ### Feat
