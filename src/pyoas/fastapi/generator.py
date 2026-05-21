@@ -405,6 +405,30 @@ def classify_model_imports(
 # ---------------------------------------------------------------------------
 
 
+_PURE_PARAM_RE = re.compile(r"^\{[^}]+\}$")
+
+
+def _route_sort_key(path: str) -> tuple[tuple[int, str], ...]:
+    """Build a per-segment sort key that orders routes by specificity.
+
+    For each `/`-separated segment, returns ``(kind, normalized_value)``:
+      kind=0 → pure literal (no params)         — sorts first
+      kind=1 → has param plus literal text      — middle (e.g. ``{id}:cancel``)
+      kind=2 → segment is exactly ``{param}``   — sorts last
+
+    Comparing segment-tuples gives FastAPI the registration order it needs.
+    """
+    keys: list[tuple[int, str]] = []
+    for seg in path.split("/"):
+        if "{" not in seg:
+            keys.append((0, seg))
+        elif _PURE_PARAM_RE.match(seg):
+            keys.append((2, seg))
+        else:
+            keys.append((1, re.sub(r"\{[^}]+\}", "\xff", seg)))
+    return tuple(keys)
+
+
 def build_router_context(
     tag: str,
     operations: list[dict[str, Any]],
@@ -422,9 +446,12 @@ def build_router_context(
         )
         for op in operations
     ]
-    # Static path segments must be registered before parameterized ones so FastAPI
-    # matches them correctly (e.g. /items/search before /items/{id}).
-    rendered_ops.sort(key=lambda op: re.sub(r"\{[^}]+\}", "\xff", op["path"]))
+    # Routes must be registered most-specific-first so FastAPI's first-match
+    # router resolves overlapping patterns correctly:
+    #   /items/search before /items/{id}        — static before param
+    #   /items/{id}:cancel before /items/{id}   — literal-suffix before bare {param},
+    #     otherwise starlette's greedy [^/]+ captures ':cancel' into {id} and 422s.
+    rendered_ops.sort(key=lambda op: _route_sort_key(op["path"]))
 
     # Warn on duplicate function names within the tag (usually caused by duplicate operationIds).
     _seen_fn: dict[str, str] = {}
