@@ -15,8 +15,10 @@ from typing import {{ _typing_names | sort | join(", ") }}
 {% if imports or needs_str_enum or needs_int_enum or needs_any or needs_literal or needs_annotated or needs_generic %}
 
 {% endif %}
-{% set _pydantic_extras = "" %}{% if needs_tag_discriminator %}{% set _pydantic_extras = _pydantic_extras + ", Discriminator, Tag" %}{% endif %}{% if needs_model_validator %}{% set _pydantic_extras = _pydantic_extras + ", model_validator" %}{% endif %}
-from pydantic import BaseModel, ConfigDict, Field{{ _pydantic_extras }}
+{% if needs_basemodel or needs_tag_discriminator or needs_model_validator %}
+{% set _pydantic_names = (["BaseModel", "ConfigDict", "Field"] if needs_basemodel else []) + (["Discriminator", "Tag"] if needs_tag_discriminator else []) + (["model_validator"] if needs_model_validator else []) %}
+from pydantic import {{ _pydantic_names | sort | join(", ") }}
+{% endif %}
 {% if shared_imports %}
 
 {% for name in shared_imports %}

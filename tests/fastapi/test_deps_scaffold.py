@@ -72,6 +72,17 @@ def test_scaffold_bearer_scheme_uses_http_bearer(tmp_path: Path) -> None:
     assert "credentials.credentials" in src
 
 
+def test_scaffold_auth_does_not_import_unused_field(tmp_path: Path) -> None:
+    """B-24: ``field`` is only mentioned in the AuthContext docstring, never in code,
+    so the dataclasses import line must not pull it in."""
+    cfg = _make_cfg(str(FIXTURES / "secured.yaml"), str(tmp_path / "deps"))
+    DependencyScaffolder(cfg).scaffold()
+
+    src = (tmp_path / "deps" / "auth.py").read_text()
+    assert "from dataclasses import dataclass\n" in src
+    assert "from dataclasses import dataclass, field" not in src
+
+
 def test_scaffold_basic_scheme_uses_http_basic(tmp_path: Path) -> None:
     """Basic auth scheme produces an HTTPBasic dependency stub."""
     cfg = _make_cfg(str(FIXTURES / "secured_basic.yaml"), str(tmp_path / "deps"))

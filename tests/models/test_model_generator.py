@@ -404,6 +404,72 @@ def test_generate_generic_paginated_no_trailing(
         assert "PagingResultUserListItem = PagingResult[UserListItem]" in users_src
         assert "PagingResult_UserListItem = PagingResultUserListItem" in users_src
 
+        # B-25: non-required non-nullable array uses default_factory=list (not None).
+        assert "items: list[T] = Field(default_factory=list)" in shared_src
+        assert "items: list[T] = Field(default=None)" not in shared_src
+
+
+def test_alias_only_tag_omits_unused_pydantic_imports(tmp_path: Path) -> None:
+    """B-23: tag files containing only type aliases must not import BaseModel/ConfigDict/Field.
+
+    Enum schemas render as ``Status = Literal["ok", "error"]`` aliases under
+    ``enums_as_literals=True``; with no class definition in the file, the
+    ``BaseModel``/``ConfigDict``/``Field`` names are unused and must not appear.
+    """
+    spec = tmp_path / "spec.yaml"
+    spec.write_text(
+        """\
+openapi: 3.0.3
+info: {title: t, version: '1'}
+paths:
+  /alpha:
+    get:
+      tags: [alpha]
+      operationId: getA
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlphaStatus'
+  /beta:
+    get:
+      tags: [beta]
+      operationId: getB
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetaThing'
+components:
+  schemas:
+    AlphaStatus:
+      type: string
+      enum: [ok, error]
+    BetaThing:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string}
+""",
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    cfg = _make_config(str(spec), str(out))
+    ModelGenerator(cfg).generate()
+
+    alpha_src = _read(out / "alpha.py")
+    assert 'AlphaStatus = Literal["ok", "error"]' in alpha_src
+    assert "from pydantic import" not in alpha_src, (
+        f"alias-only file unexpectedly imports pydantic:\n{alpha_src}"
+    )
+    # Sanity: beta.py owns an actual class and must still import pydantic.
+    beta_src = _read(out / "beta.py")
+    assert "from pydantic import BaseModel, ConfigDict, Field" in beta_src
+
 
 def test_detect_generic_groups_list_type_param(
     generic_paginated_list_param: Path,

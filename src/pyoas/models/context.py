@@ -130,6 +130,13 @@ def build_models_context(
         rs.get("is_enum_class") and rs.get("enum_type") == "IntEnum"
         for rs in rendered_schemas
     )
+    # BaseModel / ConfigDict / Field are only emitted on actual class definitions
+    # (not aliases or enum classes). Skip the pydantic import block when the file
+    # would otherwise emit no class body that references those names.
+    needs_basemodel = any(
+        not rs.get("is_alias") and not rs.get("is_enum_class")
+        for rs in rendered_schemas
+    )
 
     for rs in rendered_schemas:
         if rs.get("is_alias"):
@@ -203,6 +210,7 @@ def build_models_context(
         "needs_str_enum": needs_str_enum,
         "needs_int_enum": needs_int_enum,
         "needs_model_validator": needs_model_validator,
+        "needs_basemodel": needs_basemodel,
         "type_vars": ["T"] if needs_generic else [],
         "model_config": config.model_config,
         "shared_imports": shared_imports,

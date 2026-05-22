@@ -326,13 +326,6 @@ def generate(
             verbose=verbose,
             skip_format=True,
         )
-    if cfg.format.enabled:
-        format_paths: list[Path] = [Path(cfg.output.models)]
-        if cfg.router_scaffold.generate:
-            format_paths.append(Path(cfg.router_scaffold.output))
-        else:
-            format_paths.append(Path(cfg.output.routers))
-        _format_output(*format_paths)
     if not quiet:
         for path in model_written + router_written:
             typer.echo(typer.style(f"  wrote  {path}", fg=typer.colors.GREEN))
@@ -427,6 +420,24 @@ def generate(
             typer.echo(
                 'Run: pip install "pyoas[claude]" to generate Claude skills.', err=True
             )
+
+    if cfg.format.enabled:
+        candidates: list[Path] = [Path(cfg.output.models)]
+        if cfg.router_scaffold.generate:
+            candidates.append(Path(cfg.router_scaffold.output))
+        else:
+            candidates.append(Path(cfg.output.routers))
+        if cfg.services.generate:
+            candidates.append(Path(cfg.services.output))
+        if cfg.tests.generate:
+            candidates.append(Path(cfg.tests.output))
+        if cfg.dependencies.generate:
+            candidates.append(Path(cfg.dependencies.output))
+        if cfg.model_scaffold.generate:
+            candidates.append(Path(cfg.model_scaffold.output))
+        format_paths = [p for p in candidates if p.exists()]
+        if format_paths:
+            _format_output(*format_paths)
 
     _print_summary(summary)
 

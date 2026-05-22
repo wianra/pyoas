@@ -1089,6 +1089,34 @@ def test_fastapi_format_disabled_skips_ruff(tmp_path: Path) -> None:
     assert (tmp_path / "routers" / "pets.py").exists()
 
 
+def test_generate_format_scope_covers_all_scaffolder_outputs(tmp_path: Path) -> None:
+    """A-10: ``format.enabled`` must extend to services / tests / dependencies
+    output directories, not just models and routers.
+    """
+    cfg = _write_config(
+        tmp_path,
+        FIXTURES / "secured.yaml",  # has security → triggers dependencies scaffold
+        services={
+            "generate": True,
+            "output": str(tmp_path / "services"),
+            "import_path": "app.services",
+        },
+        tests={"generate": True, "output": str(tmp_path / "tests")},
+        dependencies={"generate": True, "output": str(tmp_path / "deps")},
+        format={"enabled": True},
+    )
+    with mock.patch("pyoas.core.utils.format_output") as mock_fmt:
+        result = runner.invoke(app, ["generate", "--config", str(cfg)])
+    assert result.exit_code == 0, result.output
+    mock_fmt.assert_called_once()
+    formatted = {str(p) for p in mock_fmt.call_args.args}
+    assert str(tmp_path / "models") in formatted
+    assert str(tmp_path / "routers") in formatted
+    assert str(tmp_path / "services") in formatted
+    assert str(tmp_path / "tests") in formatted
+    assert str(tmp_path / "deps") in formatted
+
+
 # ---------------------------------------------------------------------------
 # watch (T-01)
 # ---------------------------------------------------------------------------

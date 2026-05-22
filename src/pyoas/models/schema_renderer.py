@@ -13,7 +13,7 @@ from pyoas.core.analysis import CONSTRAINT_ARGS, GenericGroup
 from pyoas.core.config import Config
 from pyoas.core.utils import to_snake_case
 
-from .types import schema_to_python_type
+from .types import _is_nullable, schema_to_python_type
 
 
 def _build_fields(
@@ -69,7 +69,11 @@ def _build_fields(
                 "required": is_required,
                 "constraints": _extract_constraints(prop_schema),
                 "field_kwargs": _build_field_kwargs(
-                    prop_name, prop_schema, is_required, field_name=field_name
+                    prop_name,
+                    prop_schema,
+                    is_required,
+                    field_name=field_name,
+                    python_type=py_type,
                 ),
                 "read_only": prop_schema.get("readOnly", False),
                 "write_only": prop_schema.get("writeOnly", False),
@@ -297,6 +301,7 @@ def _build_field_kwargs(
     prop_schema: dict[str, Any],
     is_required: bool,
     field_name: str = "",
+    python_type: str = "",
 ) -> list[tuple[str, str]]:
     """
     Build the ordered list of ``(kwarg_name, python_value_repr)`` pairs for
@@ -313,7 +318,17 @@ def _build_field_kwargs(
     if "default" in prop_schema:
         kwargs.append(("default", repr(prop_schema["default"])))
     elif not is_required:
-        kwargs.append(("default", "None"))
+        # Non-nullable array fields (annotated as list[T], not list[T] | None)
+        # cannot accept None. Emit default_factory=list so the default matches
+        # the annotation and a missing field deserializes to [] rather than None.
+        if (
+            prop_schema.get("type") == "array"
+            and "None" not in python_type
+            and not _is_nullable(prop_schema)
+        ):
+            kwargs.append(("default_factory", "list"))
+        else:
+            kwargs.append(("default", "None"))
     else:
         kwargs.append(("default", "..."))
 
