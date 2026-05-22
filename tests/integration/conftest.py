@@ -31,11 +31,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
+    """Skip only items that carry an explicit ``@pytest.mark.integration``.
+
+    The default ``"integration" in item.keywords`` check also matches the
+    directory name, which would skip *every* test in ``tests/integration/``
+    — including the generator smoke test that must run on every push.
+    """
     if config.getoption("--run-integration"):
         return
     skip_marker = pytest.mark.skip(reason="Pass --run-integration to run this test")
     for item in items:
-        if "integration" in item.keywords:
+        if any(item.iter_markers(name="integration")):
             item.add_marker(skip_marker)
 
 

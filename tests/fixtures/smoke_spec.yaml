@@ -1,0 +1,306 @@
+openapi: "3.1.0"
+info:
+  title: pyoas smoke spec
+  version: "1.0.0"
+  description: |
+    Curated spec exercising every failure mode that produced a syntactically-valid
+    but runtime-broken generator output during the B-15..B-22 regression burst.
+    Extend this spec — not delete from it — whenever a new scaffolder feature lands.
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: items
+  - name: bulk
+  - name: files
+
+paths:
+  # --- B-18: sibling routes -----------------------------------------------
+  # /items, /items/{itemId}, /items/{itemId}:cancel, /items/{itemId}/history
+  # The {param}:literal-suffix variant MUST sort before bare {param} or
+  # Starlette greedy-matches `:cancel` into the path param → 422.
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items, filter by enum status (covers query-position Literal[...])
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Status"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create item (body has readOnly id → Item splits into Item/ItemWrite under request_extra:forbid)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Item"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      tags: [items]
+      parameters:
+        - $ref: "#/components/parameters/ItemIdPathParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      parameters:
+        - $ref: "#/components/parameters/ItemIdPathParam"
+      responses:
+        "204":
+          description: No content
+
+  /items/{itemId}:cancel:
+    post:
+      operationId: cancelItem
+      tags: [items]
+      summary: Action route — must sort before bare {itemId}
+      parameters:
+        - $ref: "#/components/parameters/ItemIdPathParam"
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{itemId}/history:
+    get:
+      operationId: getItemHistory
+      tags: [items]
+      summary: Sub-resource — separate ordering case
+      parameters:
+        - $ref: "#/components/parameters/ItemIdPathParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  /items/by-status/{status}:
+    get:
+      operationId: listItemsByStatus
+      tags: [items]
+      summary: Enum in path-param position (covers Literal[...] in path)
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Status"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  # --- B-16, B-17: array-root body & required list[Model] field ---------
+  /bulk/items:
+    post:
+      operationId: bulkCreateItems
+      tags: [bulk]
+      summary: Array-root JSON body — body stub must be an empty list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/BulkItemRequest"
+      responses:
+        "201":
+          description: Created
+
+  /bulk/import:
+    post:
+      operationId: bulkImport
+      tags: [bulk]
+      summary: Body with required list-of-Model field — default must be empty list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkImportRequest"
+      responses:
+        "201":
+          description: Imported
+
+  # --- B-15, B-20: binary / non-JSON responses returning Response -------
+  /files/{fileId}/pdf:
+    get:
+      operationId: downloadFilePdf
+      tags: [files]
+      security: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: PDF file (application/pdf → Response)
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /files/{fileId}/binary:
+    get:
+      operationId: downloadFileBinary
+      tags: [files]
+      security: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Raw octet-stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /files/export.csv:
+    get:
+      operationId: exportFilesCsv
+      tags: [files]
+      security: []
+      summary: text/csv response (covers non-JSON Response handling)
+      responses:
+        "200":
+          description: CSV export
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /files:
+    get:
+      operationId: listFiles
+      tags: [files]
+      summary: A JSON sibling so files tag exercises both Response and Pydantic paths
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileMeta"
+
+components:
+  parameters:
+    ItemIdPathParam:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Referenced by items + bulk + files → must land in shared.py
+    Status:
+      type: string
+      enum: [available, pending, sold]
+
+    Item:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: integer
+          readOnly: true        # → splits Item into Item / ItemWrite
+        name:
+          type: string
+        status:                  # enum used in a body field
+          $ref: "#/components/schemas/Status"
+        notes:
+          type: string
+
+    BulkItemRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        priority:
+          type: integer
+
+    # Required list[Model] field — covers _default_value_for_field array branch
+    BulkImportRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkItemRequest"
+        dry_run:
+          type: boolean
+
+    FileMeta:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:                  # second multi-tag reference to Status
+          $ref: "#/components/schemas/Status"

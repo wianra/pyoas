@@ -29,6 +29,12 @@ uv · ruff (E, F, I, UP; line-length 88) · mypy · pytest (`--import-mode=impor
 
 Shared OpenAPI specs live in `tests/fixtures/` and are referenced by all test modules via `conftest.py`.
 
+## Generator Smoke Test
+
+`tests/integration/test_generated_output_smoke.py` runs on every `uv run pytest` (no `--run-integration` flag needed). It generates `tests/fixtures/smoke_spec.yaml` into a tmp directory once per session and asserts the output passes `compileall`, `ruff --select=E,F --ignore=E501`, an importlib walk of every module, and a subprocess `pytest` against the scaffolded test tree with `MagicMock` services.
+
+When adding a new scaffolder feature, extend `smoke_spec.yaml` with the smallest possible operation that exercises the new code path — don't add a new check here. The B-15..B-22 burst all shared one root cause: snapshot tests accepted broken output because they never ran it. The smoke spec is the regression net.
+
 ## Skills
 
 - `/commit` — conventional commit with correct prefix

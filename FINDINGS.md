@@ -3,6 +3,7 @@
 > Initial analysis: 2026-05-19 · v0.5.1 · B-01–T-13
 > Phase 1 audit: 2026-05-22 · v0.7.1 · B-15–B-26 (QA_PLAN.md Phase 1)
 > WP-11: 2026-05-22 · B-23, B-24, B-25, A-10 closed
+> WP-12: 2026-05-22 · T-14 closed (QA_PLAN.md Phase 2 — generator smoke test)
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[-]` won't fix
 
@@ -593,10 +594,12 @@ No tests for: missing `spec` key, invalid `extra` values, unknown top-level keys
 ---
 
 ### T-14 · No behavioral smoke test for generated output
-**Status**: [ ] *(QA_PLAN.md Phase 2)*
+**Status**: [x] *(WP-12, 2026-05-22)*
 **Surfaced by**: Phase 1 audit
 
 The existing test suite snapshot-compares rendered text but never imports, type-checks, or pytest-runs the generated tree. B-15 through B-22 (eight bugs in one week) were all syntactically valid output that snapshots accepted. The smoke test in `QA_PLAN.md` Phase 2 closes this gap.
+
+**Fix**: `tests/integration/test_generated_output_smoke.py` generates `tests/fixtures/smoke_spec.yaml` into a session-scoped tmp directory and runs four checks against the result: `compileall`, `ruff --select=E,F --ignore=E501`, an importlib walk over every generated `.py`, and a subprocess `pytest` against the scaffolded test tree backed by `MagicMock`. The integration conftest was updated to gate only on the explicit `@pytest.mark.integration` marker (was previously gating on the `"integration"` directory keyword, which would have skipped the smoke test too).
 
 **Coverage matrix** (from Phase 1 findings + the eight just-fixed bugs):
 
@@ -624,13 +627,13 @@ The existing test suite snapshot-compares rendered text but never imports, type-
 
 ## Summary
 
-| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) | Fixed (WP-9) | Fixed (WP-10) | Fixed (v0.7) | Fixed (WP-11) | Phase-1 |
+| Category | Total | Open | Fixed (WP-5) | Fixed (WP-6) | Fixed (WP-7) | Fixed (WP-8) | Fixed (WP-9) | Fixed (WP-10) | Fixed (v0.7) | Fixed (WP-11) | Fixed (WP-12) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Bugs | 26 | 1 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 | — | — | B-15, B-16, B-17, B-18, B-19, B-20, B-21, B-22 | B-23, B-24, B-25 | B-26 (won't fix) |
+| Bugs | 26 | 1 | B-01, B-07, B-08, B-10, B-11, B-12 | B-02, B-05, B-06, B-09, B-13, B-14 | B-03 | B-04 | — | — | B-15, B-16, B-17, B-18, B-19, B-20, B-21, B-22 | B-23, B-24, B-25 | — *(B-26 won't fix)* |
 | Missing OAS features | 10 | 0 | F-01, F-06 | — | F-03 | F-02 | F-04, F-05, F-09, F-10 | F-07, F-08 | — | — | — |
 | Architecture issues | 10 | 0 | A-04 | A-09 | A-01, A-02, A-05 | A-06 | A-07, A-08 | A-03 | — | A-10 | — |
-| Test gaps | 14 | 1 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 | T-01 | — | — | — | T-14 (open) |
-| **Total** | **60** | **2** | **12** | **8** | **9** | **6** | **7** | **4** | **8** | **4** | **2 open** |
+| Test gaps | 14 | 0 | T-08, T-09, T-12 | T-13 | T-02, T-03, T-07, T-10 | T-04, T-05, T-06, T-11 | T-01 | — | — | — | T-14 |
+| **Total** | **60** | **1** | **12** | **8** | **9** | **6** | **7** | **4** | **8** | **4** | **1** |
 
 ### Priority
 
