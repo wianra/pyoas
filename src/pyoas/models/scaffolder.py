@@ -162,12 +162,19 @@ class ModelScaffolder:
                 result.appended_items += shared_result.appended_items
                 result.appended_files.extend(shared_result.appended_files)
 
-        # Write root __init__.py once (never overwrite — user may customise it)
-        root_init = output_root / "__init__.py"
-        if not root_init.exists():
-            root_init.write_text(
-                "# Scaffolded by pyoas — safe to edit.\n", encoding="utf-8"
-            )
+        tag_entries: list[dict[str, Any]] = []
+        for tag in list(grouped) + (
+            ["shared"] if (output_root / "shared.py").exists() else []
+        ):
+            tag_file = output_root / f"{tag_to_dirname(tag)}.py"
+            if not tag_file.exists():
+                continue
+            names = sorted(_extract_schema_names(tag_file.read_text(encoding="utf-8")))
+            if names:
+                tag_entries.append(
+                    {"dirname": tag_to_dirname(tag), "model_names": names}
+                )
+        _write_scaffold_init(output_root, tag_entries, renderer)
 
         if cfg.format.enabled:
             format_output(output_root)
@@ -488,6 +495,45 @@ def detect_model_drift(
             )
 
     return items
+
+
+def _write_scaffold_init(
+    output_root: Path,
+    tag_entries: list[dict[str, Any]],
+    renderer: Renderer,
+) -> None:
+    """Write or update the scaffold __init__.py with model re-exports.
+
+    On first write: render the full template. On re-runs: append imports for
+    (tag, name) pairs not already present, leaving user-added lines untouched.
+    """
+    init_path = output_root / "__init__.py"
+    if not init_path.exists():
+        src = renderer.render("init_scaffold.py.jinja2", {"tags": tag_entries})
+        init_path.write_text(src, encoding="utf-8")
+        typer.echo(typer.style(f"  wrote  {init_path}", fg=typer.colors.GREEN))
+        return
+
+    existing_src = init_path.read_text(encoding="utf-8")
+    new_lines: list[str] = []
+    for entry in tag_entries:
+        dirname = entry["dirname"]
+        for name in entry["model_names"]:
+            line = f"from .{dirname} import {name} as {name}  # noqa: F401"
+            if line not in existing_src:
+                new_lines.append(line)
+
+    if not new_lines:
+        return
+
+    updated = existing_src.rstrip() + "\n" + "\n".join(new_lines) + "\n"
+    init_path.write_text(updated, encoding="utf-8")
+    typer.echo(
+        typer.style(
+            f"  added  {len(new_lines)} re-export(s) to {init_path}",
+            fg=typer.colors.GREEN,
+        )
+    )
 
 
 def _extract_schema_names(src: str) -> set[str]:

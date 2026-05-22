@@ -113,12 +113,23 @@ class RouterScaffolder:
             result.appended_items += tag_result.appended_items
             result.appended_files.extend(tag_result.appended_files)
 
-        # Write root __init__.py once (never overwrite — user may customise it)
-        root_init = output_root / "__init__.py"
-        if not root_init.exists():
-            root_init.write_text(
-                "# Scaffolded by pyoas — safe to edit.\n", encoding="utf-8"
-            )
+        webhook_tag_set: set[str] = (
+            {
+                tag
+                for tag, ops in grouped.items()
+                if any(op.get("is_webhook") for op in ops)
+            }
+            if include_webhooks
+            else set()
+        )
+        tag_entries = [
+            {
+                "dirname": tag_to_dirname(tag),
+                "has_webhooks": tag in webhook_tag_set,
+            }
+            for tag in grouped
+        ]
+        _write_scaffold_init(output_root, tag_entries, renderer)
         return result
 
     def _scaffold_tag(
@@ -497,6 +508,52 @@ def _emit_router_drift_warnings(warnings: list[str], config: Config) -> None:
             f.write(f"\n--- {timestamp} ---\n")
             for w in warnings:
                 f.write(w + "\n")
+
+
+def _write_scaffold_init(
+    output_root: Path,
+    tag_entries: list[dict[str, Any]],
+    renderer: Renderer,
+) -> None:
+    """Write or update the scaffold __init__.py with router re-exports.
+
+    On first write: render the full template. On re-runs: append imports for
+    tags not already present, leaving user-added lines untouched.
+    """
+    init_path = output_root / "__init__.py"
+    if not init_path.exists():
+        src = renderer.render("init_scaffold.py.jinja2", {"tags": tag_entries})
+        init_path.write_text(src, encoding="utf-8")
+        typer.echo(typer.style(f"  wrote  {init_path}", fg=typer.colors.GREEN))
+        return
+
+    existing_src = init_path.read_text(encoding="utf-8")
+    new_lines: list[str] = []
+    for entry in tag_entries:
+        dirname = entry["dirname"]
+        router_import = (
+            f"from .{dirname} import router as {dirname}_router  # noqa: F401"
+        )
+        if router_import not in existing_src:
+            new_lines.append(router_import)
+        if entry["has_webhooks"]:
+            webhook_import = (
+                f"from .{dirname} import webhooks as {dirname}_webhooks  # noqa: F401"
+            )
+            if webhook_import not in existing_src:
+                new_lines.append(webhook_import)
+
+    if not new_lines:
+        return
+
+    updated = existing_src.rstrip() + "\n" + "\n".join(new_lines) + "\n"
+    init_path.write_text(updated, encoding="utf-8")
+    typer.echo(
+        typer.style(
+            f"  added  {len(new_lines)} re-export(s) to {init_path}",
+            fg=typer.colors.GREEN,
+        )
+    )
 
 
 def _render_endpoint_stubs(

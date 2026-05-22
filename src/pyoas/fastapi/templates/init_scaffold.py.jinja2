@@ -1,0 +1,9 @@
+# Scaffolded by pyoas — safe to edit. Tag re-exports below are appended on re-runs.
+from __future__ import annotations
+
+{% for entry in tags %}
+from .{{ entry.dirname }} import router as {{ entry.dirname }}_router  # noqa: F401
+{% if entry.has_webhooks %}
+from .{{ entry.dirname }} import webhooks as {{ entry.dirname }}_webhooks  # noqa: F401
+{% endif %}
+{% endfor %}

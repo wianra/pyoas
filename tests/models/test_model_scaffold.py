@@ -180,6 +180,59 @@ def test_scaffold_overwrite_regenerates_file(petstore_30: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scaffold __init__.py re-exports
+# ---------------------------------------------------------------------------
+
+
+def test_scaffold_init_contains_model_reexports(petstore_30: Path) -> None:
+    """First run: __init__.py re-exports each schema from its tag module."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_cfg(str(petstore_30), tmp)
+        ModelScaffolder(cfg).scaffold()
+
+        init_src = _read(Path(tmp) / "__init__.py")
+        assert "# Scaffolded by pyoas" in init_src
+        assert "from .pets import Pet as Pet  # noqa: F401" in init_src
+
+
+def test_scaffold_init_preserves_user_edits_and_appends_new_schema(
+    petstore_30: Path,
+) -> None:
+    """Re-run: user-added lines stay; imports for new schemas are appended."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_cfg(str(petstore_30), tmp)
+        ModelScaffolder(cfg).scaffold()
+
+        init_path = Path(tmp) / "__init__.py"
+        original = _read(init_path)
+        user_edited = original.replace(
+            "from .pets import Pet as Pet  # noqa: F401",
+            "from .pets import Pet as Pet  # noqa: F401\n"
+            "# user-added comment\n"
+            "my_alias = object()",
+        )
+        init_path.write_text(user_edited, encoding="utf-8")
+
+        # Re-run with same spec: file unchanged.
+        ModelScaffolder(cfg).scaffold()
+        assert _read(init_path) == user_edited
+
+        # Drop the Pet re-export — next run should re-append it.
+        truncated = (
+            "# Scaffolded by pyoas — keep my header\n"
+            "from __future__ import annotations\n\n"
+            "# user-added comment\n"
+            "my_alias = object()\n"
+        )
+        init_path.write_text(truncated, encoding="utf-8")
+        ModelScaffolder(cfg).scaffold()
+        after = _read(init_path)
+        assert "# user-added comment" in after
+        assert "my_alias = object()" in after
+        assert "from .pets import Pet as Pet  # noqa: F401" in after
+
+
+# ---------------------------------------------------------------------------
 # detect_model_drift
 # ---------------------------------------------------------------------------
 

@@ -294,6 +294,60 @@ def test_scaffold_overwrite_regenerates_file(petstore_30: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scaffold __init__.py re-exports
+# ---------------------------------------------------------------------------
+
+
+def test_scaffold_init_contains_router_reexports(petstore_30: Path) -> None:
+    """First run: __init__.py re-exports each tag's router."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_cfg(str(petstore_30), tmp)
+        RouterScaffolder(cfg).scaffold()
+
+        init_src = _read(Path(tmp) / "__init__.py")
+        assert "# Scaffolded by pyoas" in init_src
+        assert "from .pets import router as pets_router  # noqa: F401" in init_src
+
+
+def test_scaffold_init_preserves_user_edits_and_appends_new_tag(
+    petstore_30: Path,
+) -> None:
+    """Re-run: user-added lines stay; imports for new tags are appended."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = _make_cfg(str(petstore_30), tmp)
+        RouterScaffolder(cfg).scaffold()
+
+        init_path = Path(tmp) / "__init__.py"
+        original = _read(init_path)
+        # Simulate user adding their own line, and removing an auto re-export.
+        user_edited = original.replace(
+            "from .pets import router as pets_router  # noqa: F401",
+            "from .pets import router as pets_router  # noqa: F401\n"
+            "# user-added comment\n"
+            "my_custom = object()",
+        )
+        init_path.write_text(user_edited, encoding="utf-8")
+
+        # Second run with the same spec: nothing new, file unchanged.
+        RouterScaffolder(cfg).scaffold()
+        assert _read(init_path) == user_edited
+
+        # Now drop the pets import entirely and re-run — it should be re-appended.
+        truncated = (
+            "# Scaffolded by pyoas — keep my header\n"
+            "from __future__ import annotations\n\n"
+            "# user-added comment\n"
+            "my_custom = object()\n"
+        )
+        init_path.write_text(truncated, encoding="utf-8")
+        RouterScaffolder(cfg).scaffold()
+        after = _read(init_path)
+        assert "# user-added comment" in after
+        assert "my_custom = object()" in after
+        assert "from .pets import router as pets_router  # noqa: F401" in after
+
+
+# ---------------------------------------------------------------------------
 # detect_router_drift
 # ---------------------------------------------------------------------------
 
