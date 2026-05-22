@@ -1,3 +1,13 @@
+## v0.7.2 (2026-05-22)
+
+### Fix
+
+- **generator**: clean up generated-output quality (B-23/24/25, A-10)
+- **testscaffold**: hoist auth_context fixture imports to top of conftest
+- **scaffold**: emit missing Literal/Response/Write imports in service stubs
+- **router**: sort routes by per-segment specificity so {param}:literal precedes {param}
+- **testscaffold**: keep AsyncMock out of FastAPI serializer for Response, list bodies, and array fields
+
 ## v0.7.1 (2026-05-21)
 
 ### Fix
