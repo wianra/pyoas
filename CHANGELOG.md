@@ -1,3 +1,18 @@
+## v0.8.0 (2026-06-04)
+
+### BREAKING CHANGE
+
+- the pyoas[claude] extra, the `pyoas scaffold skills`
+command, and the `skills:` config section are removed.
+
+### Feat
+
+- remove Claude Code skill generation
+
+### Fix
+
+- **scaffold**: generate router and model re-exports in __init__.py
+
 ## v0.7.2 (2026-05-22)
 
 ### Fix
