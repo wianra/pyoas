@@ -10,9 +10,8 @@ Python 3.12+ single-package project (`pyoas`) with optional extras. Generates Py
 |---|---|
 | `pyoas` | Spec loading, ref resolution, tag extraction, Jinja2 rendering, Pydantic v2 model generation, CLI |
 | `pyoas[fastapi]` | FastAPI router generation + service stubs + test scaffolding |
-| `pyoas[claude]` | Claude Code skill generation (optional) |
 
-`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
+`pyoas[fastapi]` extends the base `pyoas` package.
 
 ## Tooling
 

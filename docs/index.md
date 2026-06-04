@@ -83,7 +83,6 @@ pyoas reads your OpenAPI spec, groups operations by tag, and writes fully-typed 
 - **Custom templates** — override any Jinja2 template with your own
 - **Watch mode** — `pyoas watch` re-generates on spec save
 - **Diff mode** — `pyoas diff` exits non-zero if any file would change (CI-friendly)
-- **Claude Code skills** — optional `.claude/commands/` files for AI-assisted implementation
 
 ## Packages
 
@@ -91,9 +90,8 @@ pyoas reads your OpenAPI spec, groups operations by tag, and writes fully-typed 
 |---|---|---|
 | `pyoas` | `uv add pyoas` | Spec loading, config, CLI, Jinja2 renderer, Pydantic v2 model generation |
 | `pyoas[fastapi]` | `uv add pyoas[fastapi]` | FastAPI router + scaffold generation (adds FastAPI dependency) |
-| `pyoas[claude]` | `uv add "pyoas[claude]"` | Claude Code skill generation (optional) |
 
-`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
+`pyoas[fastapi]` extends the base `pyoas` package.
 
 ## Get started
 

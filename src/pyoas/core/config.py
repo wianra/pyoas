@@ -22,7 +22,6 @@ _KNOWN_CONFIG_KEYS: frozenset[str] = frozenset(
         "templates",
         "services",
         "tests",
-        "skills",
         "router",
         "dependencies",
         "webhooks",
@@ -106,14 +105,6 @@ class TestsConfig:
 
 
 @dataclass
-class SkillsConfig:
-    generate: bool = False
-    output: str = ".claude/commands"
-    overwrite: bool = False
-    services_pattern: str = "none"  # none | repository | domain
-
-
-@dataclass
 class RouterConfig:
     response_model_exclude_none: bool = False
     response_model_exclude_unset: bool = False
@@ -165,7 +156,6 @@ class Config:
     templates: TemplatesConfig = field(default_factory=TemplatesConfig)
     services: ServicesConfig = field(default_factory=ServicesConfig)
     tests: TestsConfig = field(default_factory=TestsConfig)
-    skills: SkillsConfig = field(default_factory=SkillsConfig)
     router: RouterConfig = field(default_factory=RouterConfig)
     dependencies: DependenciesConfig = field(default_factory=DependenciesConfig)
     webhooks: WebhooksConfig = field(default_factory=WebhooksConfig)
@@ -209,7 +199,6 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
     tmpl = data.get("templates", {})
     svc = data.get("services", {})
     tst = data.get("tests", {})
-    skl = data.get("skills", {})
     rtr = data.get("router", {})
     dep = data.get("dependencies", {})
     wh = data.get("webhooks", {})
@@ -235,7 +224,6 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
 
     svc_output = svc.get("output", "src/services")
     tst_output = tst.get("output", "tests/generated")
-    skl_output = skl.get("output", ".claude/commands")
     dep_output = dep.get("output", "src/dependencies")
     rsc_output = rsc.get("output", "src/routers")
     msc_output = msc.get("output", "src/models")
@@ -286,12 +274,6 @@ def _parse_config(data: dict[str, Any], base_dir: Path | None = None) -> Config:
             output=_resolve(tst_output),
             overwrite=tst.get("overwrite", False),
             not_found_exception=tst.get("not_found_exception"),
-        ),
-        skills=SkillsConfig(
-            generate=skl.get("generate", False),
-            output=_resolve(skl_output),
-            overwrite=skl.get("overwrite", False),
-            services_pattern=skl.get("services_pattern", "none"),
         ),
         router=RouterConfig(
             response_model_exclude_none=rtr.get("response_model_exclude_none", False),

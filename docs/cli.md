@@ -96,7 +96,6 @@ This is the primary command for day-to-day use. It generates:
 3. Service stubs — if `services.generate: true`
 4. Test stubs — if `tests.generate: true`
 5. Dependency stubs — if `dependencies.generate: true`
-6. Claude Code skills — if `skills.generate: true`
 
 ---
 
@@ -161,14 +160,6 @@ pyoas scaffold dependencies [--config PATH]
 ```
 
 Scaffold dependency injection stubs (`src/dependencies/auth.py`). Skips if exists.
-
-### `pyoas scaffold skills`
-
-```shell
-pyoas scaffold skills [--config PATH]
-```
-
-Scaffold Claude Code skill files. Requires `pyoas[claude]`. Skips existing files unless `skills.overwrite: true`.
 
 ---
 

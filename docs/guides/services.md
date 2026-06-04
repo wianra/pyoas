@@ -128,16 +128,3 @@ from src.services.pets import PetsService
 ```
 
 If `import_path` is empty, service imports are omitted from generated routers and endpoints raise `NotImplementedError`.
-
-## Services pattern (for Claude Code skills)
-
-When using `pyoas[claude]`, the `services_pattern` option hints at the service layer architecture:
-
-```yaml
-skills:
-  services_pattern: repository  # none | repository | domain
-```
-
-- `none` — plain service class (default)
-- `repository` — service delegates to a repository for data access
-- `domain` — service contains domain logic, separate from infrastructure

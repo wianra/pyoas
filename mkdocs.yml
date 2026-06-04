@@ -65,6 +65,5 @@ nav:
     - Test Scaffolding: guides/tests.md
     - Dependency Injection: guides/dependencies.md
     - Custom Templates: guides/custom-templates.md
-    - Claude Code Skills: guides/claude-skills.md
   - CLI Reference: cli.md
   - Package Architecture: packages.md

@@ -1,6 +1,6 @@
 # Package Architecture
 
-pyoas is a single Python package (`pyoas`) with optional extras for FastAPI and Claude Code integration.
+pyoas is a single Python package (`pyoas`) with an optional extra for FastAPI integration.
 
 ## Install options
 
@@ -10,9 +10,6 @@ uv add pyoas[fastapi]
 
 # Models only (no FastAPI dependency)
 uv add pyoas
-
-# Claude Code skill generation (can be combined with either of the above)
-uv add "pyoas[fastapi,claude]"
 ```
 
 ## What each install provides
@@ -69,26 +66,6 @@ ServiceScaffolder(config).scaffold()
 
 ---
 
-### `pyoas[claude]`
-
-Extends the base package with Claude Code skill file generation.
-
-**Additional provides:**
-
-- `pyoas.claude.SkillScaffolder` — generate `.claude/commands/*.md` skill files
-
-**Additional runtime dependencies:** none
-
-```python
-from pyoas.core.config import load_config
-from pyoas.claude import SkillScaffolder
-
-config = load_config("pyoas.yaml")
-SkillScaffolder(config).scaffold()
-```
-
----
-
 ## Source layout
 
 All modules live under a single `src/pyoas/` tree:
@@ -98,5 +75,4 @@ src/pyoas/
   core/    # config, parser, resolver, tags, renderer, utils, cli
   models/  # ModelGenerator, schema renderer, type mapping
   fastapi/ # RouterGenerator, scaffolders, params
-  claude/  # SkillScaffolder
 ```

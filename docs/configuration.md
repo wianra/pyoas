@@ -55,12 +55,6 @@ tests:
   overwrite: false
   not_found_exception: null
 
-skills:
-  generate: false            # requires pyoas[claude]
-  output: .claude/commands
-  overwrite: false
-  services_pattern: none     # none | repository | domain
-
 router:
   response_model_exclude_none: false
   response_model_exclude_unset: false
@@ -248,19 +242,6 @@ tests:
 ```
 
 This generates `test_not_found` stubs that mock the service to raise this exception and assert a 404 response.
-
----
-
-## `skills`
-
-Claude Code skill generation. Requires `pyoas[claude]` to be installed.
-
-| Key | Default | Description |
-|---|---|---|
-| `generate` | `false` | Generate skill files when running `pyoas generate` |
-| `output` | `.claude/commands` | Output directory for skill files |
-| `overwrite` | `false` | Overwrite existing skill files on re-run |
-| `services_pattern` | `"none"` | Service pattern hint for generated skills: `none`, `repository`, `domain` |
 
 ---
 

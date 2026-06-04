@@ -258,39 +258,6 @@ def test_generate_summary_table_with_services(tmp_path: Path) -> None:
     assert "─" in result.output
 
 
-def test_generate_with_skills_writes_skill_files(tmp_path: Path) -> None:
-    cfg = _write_config(
-        tmp_path,
-        FIXTURES / "petstore_3.0.yaml",
-        skills={
-            "generate": True,
-            "output": str(tmp_path / "skills"),
-            "overwrite": True,
-        },
-    )
-    result = runner.invoke(app, ["generate", "--config", str(cfg)])
-    assert result.exit_code == 0, result.output
-    assert "skills" in result.output
-    assert (tmp_path / "skills" / "implement-tests.md").exists()
-
-
-def test_generate_skills_import_error_continues_not_fails(tmp_path: Path) -> None:
-    """generate keeps exit_code 0 when pyoas[claude] is missing — it wraps skills in try/except."""
-    cfg = _write_config(
-        tmp_path,
-        FIXTURES / "petstore_3.0.yaml",
-        skills={
-            "generate": True,
-            "output": str(tmp_path / "skills"),
-            "overwrite": True,
-        },
-    )
-    with mock.patch.dict(sys.modules, {"pyoas.claude": None}):
-        result = runner.invoke(app, ["generate", "--config", str(cfg)])
-    assert result.exit_code == 0
-    assert "pyoas[claude]" in result.output
-
-
 def test_generate_missing_models_and_fastapi_exits_one(tmp_path: Path) -> None:
     cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
     with mock.patch.dict(sys.modules, {"pyoas.models": None, "pyoas.fastapi": None}):
@@ -471,50 +438,6 @@ def test_scaffold_tests_missing_extra_exits_one(tmp_path: Path) -> None:
         result = runner.invoke(app, ["scaffold", "tests", "--config", str(cfg)])
     assert result.exit_code == 1
     assert "pyoas[fastapi]" in result.output
-
-
-# ---------------------------------------------------------------------------
-# scaffold skills
-# ---------------------------------------------------------------------------
-
-
-def test_scaffold_skills_writes_skill_files(tmp_path: Path) -> None:
-    cfg = _write_config(
-        tmp_path,
-        FIXTURES / "petstore_3.0.yaml",
-        skills={
-            "generate": True,
-            "output": str(tmp_path / "skills"),
-            "overwrite": True,
-        },
-    )
-    result = runner.invoke(app, ["scaffold", "skills", "--config", str(cfg)])
-    assert result.exit_code == 0, result.output
-    assert "wrote" in result.output
-    assert (tmp_path / "skills" / "implement-tests.md").exists()
-
-
-def test_scaffold_skills_writes_multiple_skill_files(tmp_path: Path) -> None:
-    cfg = _write_config(
-        tmp_path,
-        FIXTURES / "petstore_3.0.yaml",
-        skills={
-            "generate": True,
-            "output": str(tmp_path / "skills"),
-            "overwrite": True,
-        },
-    )
-    runner.invoke(app, ["scaffold", "skills", "--config", str(cfg)])
-    assert (tmp_path / "skills" / "add-test-case.md").exists()
-    assert (tmp_path / "skills" / "review-generated.md").exists()
-
-
-def test_scaffold_skills_missing_extra_exits_one(tmp_path: Path) -> None:
-    cfg = _write_config(tmp_path, FIXTURES / "petstore_3.0.yaml")
-    with mock.patch.dict(sys.modules, {"pyoas.claude": None}):
-        result = runner.invoke(app, ["scaffold", "skills", "--config", str(cfg)])
-    assert result.exit_code == 1
-    assert "pyoas[claude]" in result.output
 
 
 # ---------------------------------------------------------------------------

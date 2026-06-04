@@ -947,12 +947,12 @@ requires-dist = [
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "polyfactory", marker = "extra == 'fastapi'", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.9" },
-    { name = "pyoas", extras = ["fastapi", "claude"], marker = "extra == 'all'" },
+    { name = "pyoas", extras = ["fastapi"], marker = "extra == 'all'" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12" },
     { name = "watchdog", specifier = ">=3.0" },
 ]
-provides-extras = ["fastapi", "claude", "all"]
+provides-extras = ["fastapi", "all"]
 
 [package.metadata.requires-dev]
 dev = [

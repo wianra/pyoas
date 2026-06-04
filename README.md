@@ -8,9 +8,8 @@ Generate Pydantic v2 models and FastAPI routers from an OpenAPI spec. Organized 
 |---|---|
 | `pyoas` | Spec loading, ref resolution, tag extraction, Jinja2 rendering, Pydantic v2 model generation, CLI |
 | `pyoas[fastapi]` | FastAPI router generation + service stubs + test scaffolding (adds FastAPI dependency) |
-| `pyoas[claude]` | Claude Code skill generation (optional, no extra runtime dependencies) |
 
-`pyoas[fastapi]` and `pyoas[claude]` both extend the base `pyoas` package.
+`pyoas[fastapi]` extends the base `pyoas` package.
 
 ## Quick start
 
@@ -48,14 +47,12 @@ tests:
   generate: true
   output: tests/generated
   not_found_exception: "HTTPException(status_code=404, detail='Not found')"
-skills:
-  generate: true  # requires pyoas[claude]
 ```
 
 Then:
 
 ```shell
-uv run pyoas generate   # models + routers + service stubs + tests + skills
+uv run pyoas generate   # models + routers + service stubs + tests
 ```
 
 ## Configuration reference (`pyoas.yaml`)
@@ -126,16 +123,6 @@ Default: `"default"`. Operations with no tag are grouped under this name.
 | `output` | `tests/generated` | Output directory for test files |
 | `overwrite` | `false` | Overwrite existing test files on re-run (default: append new test classes only) |
 | `not_found_exception` | `null` | Exception expression used in `test_not_found` stubs (e.g. `HTTPException(status_code=404)`) |
-
-### `skills`
-
-Requires `pyoas[claude]` to be installed.
-
-| Key | Default | Description |
-|---|---|---|
-| `generate` | `false` | Generate Claude Code skill files |
-| `output` | `.claude/commands` | Output directory for skill files |
-| `overwrite` | `false` | Overwrite existing skill files on re-run |
 
 ### `webhooks`
 
@@ -233,7 +220,7 @@ Each test class covers one endpoint and includes:
 ```shell
 pyoas models        # generate Pydantic models only
 pyoas fastapi       # generate FastAPI routers only
-pyoas generate      # generate models + routers (+ services/tests/skills if configured)
+pyoas generate      # generate models + routers (+ services/tests if configured)
 ```
 
 Generation commands accept:
@@ -249,7 +236,6 @@ Generation commands accept:
 pyoas scaffold services       # scaffold service stubs (skips existing files)
 pyoas scaffold tests          # scaffold pytest test files (skips existing files)
 pyoas scaffold dependencies   # scaffold auth dependency stubs
-pyoas scaffold skills         # scaffold Claude Code skill files
 pyoas scaffold webhooks       # print webhook router mount instructions
 ```
 
@@ -326,21 +312,11 @@ my_plugin = "myapp.plugin:MyPlugin"
 `pyoas doctor` validates plugin imports before generation starts. See
 `examples/plugin_example/` for a complete working example.
 
-## Claude Code integration (`pyoas[claude]`)
-
-Install `pyoas[claude]` and set `skills.generate: true` in your config. Running `pyoas generate` will write Claude Code skill files to `.claude/commands/`:
-
-| Skill | Invocation | Purpose |
-|---|---|---|
-| `implement-tests.md` | `/implement-tests tests/generated/test_pets.py` | Implement all `pytest.skip("implement me")` stubs in a test file |
-| `add-test-case.md` | `/add-test-case tests/generated/test_pets.py "scenario"` | Add a new test method for the described scenario |
-| `review-generated.md` | `/review-generated` | Cross-reference generated code against the OpenAPI spec and flag issues |
-
 ## Development
 
 ```shell
 # Install in editable mode with all extras
-uv sync --extra fastapi --extra claude
+uv sync --extra fastapi
 
 # Run all tests
 uv run pytest

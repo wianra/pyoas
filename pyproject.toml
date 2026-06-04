@@ -16,8 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 fastapi = ["fastapi>=0.110", "polyfactory>=2.0"]
-claude = []
-all = ["pyoas[fastapi,claude]"]
+all = ["pyoas[fastapi]"]
 
 [project.scripts]
 pyoas = "pyoas.core.cli:app"

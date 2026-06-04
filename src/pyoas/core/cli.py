@@ -126,11 +126,6 @@ dependencies:
   output: src/dependencies
   import_path: ""  # e.g. "src.dependencies"
   overwrite: false
-skills:
-  generate: false
-  output: .claude/commands
-  overwrite: false
-  services_pattern: none  # none | repository | domain
 webhooks:
   generate: false  # set to true to generate code for OAS 3.1 webhooks
 router_scaffold:
@@ -408,18 +403,6 @@ def generate(
             files_str = ", ".join(mscaffold_result.appended_files)
             detail = f"{mscaffold_result.appended_items} added to {len(mscaffold_result.appended_files)} file(s) ({files_str})"
         summary.append(("model scaffolds", f"{mscaffold_result.wrote} wrote", detail))
-
-    if cfg.skills.generate:
-        try:
-            from pyoas.claude import SkillScaffolder
-
-            skill_result = SkillScaffolder(cfg).scaffold()
-            detail = f"{skill_result.skipped} skipped" if skill_result.skipped else ""
-            summary.append(("skills", f"{skill_result.wrote} wrote", detail))
-        except ImportError:
-            typer.echo(
-                'Run: pip install "pyoas[claude]" to generate Claude skills.', err=True
-            )
 
     if cfg.format.enabled:
         candidates: list[Path] = [Path(cfg.output.models)]
@@ -879,22 +862,6 @@ def scaffold_tests(
     ServiceTestScaffolder(cfg).scaffold()
 
 
-@scaffold_app.command("skills")
-def scaffold_skills(
-    config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
-) -> None:
-    """Scaffold Claude skill files (skips existing files unless overwrite: true in config)."""
-    try:
-        from pyoas.claude import SkillScaffolder
-    except ImportError:
-        typer.echo(
-            'Run: pip install "pyoas[claude]" to generate Claude skills.', err=True
-        )
-        raise typer.Exit(1)
-
-    SkillScaffolder(_load_cfg(config)).scaffold()
-
-
 @scaffold_app.command("webhooks")
 def scaffold_webhooks(
     config: Annotated[str, _CONFIG_OPTION] = "pyoas.yaml",
@@ -1128,17 +1095,6 @@ def watch(
                 from pyoas.models import ModelScaffolder
 
                 ModelScaffolder(cfg).scaffold(tag_filter=tag_filter)
-
-            if cfg.skills.generate:
-                try:
-                    from pyoas.claude import SkillScaffolder
-
-                    SkillScaffolder(cfg).scaffold()
-                except ImportError:
-                    typer.echo(
-                        'Run: pip install "pyoas[claude]" to generate Claude skills.',
-                        err=True,
-                    )
 
             typer.echo("Done.")
         except Exception as exc:  # noqa: BLE001
