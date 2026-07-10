@@ -1,0 +1,98 @@
+# Scaffolded by pyoas — safe to edit; won't be overwritten unless tests.overwrite: true.
+#
+# Guard against registration-order route shadowing.
+#
+# FastAPI/Starlette match routes in *registration order*, and every path
+# parameter compiles to a greedy ``[^/]+`` regardless of its declared type.  A
+# literal route (``/items/export``) registered *after* a parametric sibling on
+# the same prefix (``/items/{item_id}``) is therefore unreachable: the
+# parametric route captures ``export`` first and then 422s trying to coerce it.
+#
+# pyoas orders routes most-specific-first within a single generation pass, but
+# routers are scaffolded append-only — a literal appended on a later run can
+# still land after an existing parametric route.  This test walks the assembled
+# route table and fails if any route is shadowed by an earlier, less-specific
+# one, turning a silent production 422 into a red test at codegen time.
+from __future__ import annotations
+
+import importlib
+import re
+
+from fastapi import APIRouter
+from starlette.routing import Route
+
+# Package that re-exports every generated router (``<tag>_router`` names).
+ROUTER_PACKAGE = "{{ router_import_path }}"
+
+# A synthetic path-parameter value.  It only needs to match Starlette's greedy
+# ``[^/]+`` while being unlikely to equal any real literal segment, so probing a
+# parametric route never collides with a legitimately-more-specific literal.
+_PROBE = "__pyoas_shadow_probe__"
+_PARAM_RE = re.compile(r"\{[^}]+\}")
+
+
+def _collect_routes() -> list[Route]:
+    """Return every generated route in registration order.
+
+    Routers are discovered dynamically from ``ROUTER_PACKAGE`` so this file
+    never needs regeneration when tags are added.
+    """
+    package = importlib.import_module(ROUTER_PACKAGE)
+    routes: list[Route] = []
+    seen: set[int] = set()
+    for value in vars(package).values():
+        if isinstance(value, APIRouter) and id(value) not in seen:
+            seen.add(id(value))
+            routes.extend(
+                r
+                for r in value.routes
+                if isinstance(r, Route) and getattr(r, "path_regex", None) is not None
+            )
+    return routes
+
+
+def _sample_path(path: str) -> str:
+    """Build a concrete sample path from a route template.
+
+    Each ``{param}`` becomes ``_PROBE`` so that an earlier, less-specific
+    pattern's ``[^/]+`` segment will match this route's sample iff it shadows it.
+    """
+    return _PARAM_RE.sub(_PROBE, path)
+
+
+def find_shadowed_routes(routes: list[Route]) -> list[str]:
+    """Return a description for every route shadowed by an earlier one.
+
+    A route is shadowed when some earlier-registered route of an overlapping
+    HTTP method matches a concrete sample of its path.  Empty when the table is
+    correctly ordered.
+    """
+    findings: list[str] = []
+    seen: list[Route] = []
+    for route in routes:
+        sample = _sample_path(route.path)
+        route_methods = route.methods or set()
+        for prior in seen:
+            if prior.path == route.path:
+                continue
+            prior_methods = prior.methods or set()
+            if route_methods and prior_methods and not (route_methods & prior_methods):
+                continue
+            if prior.path_regex.match(sample):
+                shared = sorted((route_methods & prior_methods) or route_methods)
+                findings.append(
+                    f"{', '.join(shared) or '<any>'} {route.path} is shadowed by "
+                    f"earlier route {prior.path} — a request to {sample!r} is "
+                    f"captured by {prior.path!r} first"
+                )
+                break
+        seen.append(route)
+    return findings
+
+
+def test_no_shadowed_routes() -> None:
+    """No generated route is unreachable behind an earlier, less-specific one."""
+    shadowed = find_shadowed_routes(_collect_routes())
+    assert not shadowed, "Shadowed (unreachable) routes detected:\n  " + "\n  ".join(
+        shadowed
+    )

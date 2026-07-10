@@ -24,10 +24,27 @@ pyoas scaffold tests
 
 ```
 tests/generated/
-  conftest.py      # shared fixtures and model factories
-  test_pets.py     # tests for the pets tag
-  test_users.py    # tests for the users tag
+  conftest.py                  # shared fixtures and model factories
+  test_pets.py                 # tests for the pets tag
+  test_users.py                # tests for the users tag
+  test_no_shadowed_routes.py   # guard: no route is unreachable behind a less-specific one
 ```
+
+## test_no_shadowed_routes.py — the shadowing guard
+
+FastAPI matches routes in registration order, and every path parameter compiles
+to a greedy `[^/]+`. A literal route (`/users/export`) registered *after* a
+parametric sibling on the same prefix (`/users/{user_id}`) is therefore
+unreachable — the parametric route captures `export` first and 422s trying to
+coerce it to the declared type.
+
+pyoas orders routes most-specific-first within each generation pass, but routers
+are scaffolded append-only, so a literal appended on a later run can still land
+after an existing parametric route. `test_no_shadowed_routes.py` walks the
+assembled route table and fails if any route is shadowed by an earlier, less-
+specific one — turning a silent production 422 into a red test at codegen time.
+It discovers routers dynamically, so it never needs regeneration as tags are
+added and is safe to edit.
 
 ## conftest.py — factories and fixtures
 
