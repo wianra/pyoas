@@ -59,6 +59,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Item"
 
+  # --- Issue #1: literal leaf sharing a prefix with a parametric sibling ----
+  # /items/export is a pure-literal route on the same prefix as /items/{itemId}.
+  # If it registered *after* the parametric route, `export` would be captured by
+  # {itemId} and 422 on int coercion. The generator must emit it first, and the
+  # generated test_no_shadowed_routes guard asserts it is reachable.
+  /items/export:
+    get:
+      operationId: exportItems
+      tags: [items]
+      summary: Literal leaf that must sort before /items/{itemId}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
   /items/{itemId}:
     get:
       operationId: getItem

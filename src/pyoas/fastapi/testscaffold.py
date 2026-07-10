@@ -399,6 +399,7 @@ class TestScaffolder:
 
         all_tag_models: list[dict[str, Any]] = []
         any_has_auth_dep: bool = False
+        router_import_path: str | None = None
 
         for tag, operations in grouped.items():
             raw_operations = grouped_raw.get(tag, [])
@@ -414,6 +415,8 @@ class TestScaffolder:
             result.appended_files.extend(tag_result.appended_files)
             if context.get("has_auth_dep"):
                 any_has_auth_dep = True
+            # All tags share the same router package import path.
+            router_import_path = context["router_import_path"]
             response_models: list[dict[str, Any]] = context["response_models"]
             if response_models:
                 all_tag_models.append(
@@ -486,6 +489,13 @@ class TestScaffolder:
             auth_dep_import_path=cfg.dependencies.import_path or None,
         )
         result.wrote += conftest_result.wrote
+
+        if router_import_path:
+            guard_result = self._scaffold_shadow_guard(
+                router_import_path, renderer, output_root
+            )
+            result.wrote += guard_result.wrote
+
         return result
 
     def _scaffold_tag(
@@ -649,6 +659,31 @@ class TestScaffolder:
         )
         conftest_result.appended_items = count
         return conftest_result
+
+    def _scaffold_shadow_guard(
+        self,
+        router_import_path: str,
+        renderer: Renderer,
+        output_root: Path,
+    ) -> ScaffoldResult:
+        """Write the route-shadowing guard test.
+
+        The generated test discovers routers dynamically, so its content depends
+        only on the router package path — it never needs regeneration when tags
+        are added and is left untouched on re-runs unless ``tests.overwrite``.
+        """
+        guard_result = ScaffoldResult()
+        guard_file = output_root / "test_no_shadowed_routes.py"
+        if guard_file.exists() and not self._config.tests.overwrite:
+            return guard_result
+        src = renderer.render(
+            "test_no_shadowed_routes.py.jinja2",
+            {"router_import_path": router_import_path},
+        )
+        guard_file.write_text(src, encoding="utf-8")
+        typer.echo(typer.style(f"  wrote  {guard_file}", fg=typer.colors.GREEN))
+        guard_result.wrote = 1
+        return guard_result
 
 
 class TestOperation(TypedDict):
